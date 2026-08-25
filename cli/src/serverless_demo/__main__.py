@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import configsync, lifecycle, verify
+from . import configsync, lifecycle, seed, verify
 from .config import ConfigError, load
 from .sessions import AccountMismatch, SessionError
 
@@ -112,6 +112,20 @@ def cmd_config_sync(config, args) -> int:
     return EXIT_OK
 
 
+def cmd_seed(config, args) -> int:
+    report(f"Seeding {config.demo.account_id} as run {args.run_id}")
+    report("")
+    result = seed.run(config, args.run_id, report, confirm_timeout=args.confirm_timeout)
+    report("")
+    if not result.ok:
+        report(f"Seed did not complete: {result.reason}")
+        return EXIT_INCOMPLETE
+    report(f"Seed complete. Source {result.source_ip}, "
+           f"orphaned key {result.orphaned_key_id} on {config.demo.persistence_user}.")
+    report("The events are confirmed present. Run `soar` next, then `artifacts`.")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="serverless-demo",
@@ -138,6 +152,12 @@ def build_parser() -> argparse.ArgumentParser:
     verify_cmd = sub.add_parser(
         "verify", help="Read-only preflight. Run before every demo.")
     verify_cmd.set_defaults(handler=cmd_verify)
+
+    seed_cmd = sub.add_parser("seed", help="Mint the key, run the attack, confirm the events.")
+    seed_cmd.add_argument("--run-id", required=True, help="Tags everything this run creates.")
+    seed_cmd.add_argument("--confirm-timeout", type=int, default=1200,
+                          help="Seconds to wait for CloudTrail. Default 20 minutes.")
+    seed_cmd.set_defaults(handler=cmd_seed)
 
     config_cmd = sub.add_parser("config", help="Manage demo.toml.")
     config_sub = config_cmd.add_subparsers(dest="config_command", required=True)

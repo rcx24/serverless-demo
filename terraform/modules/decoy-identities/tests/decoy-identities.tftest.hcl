@@ -4,15 +4,28 @@ variables {
   exports_bucket_arn = "arn:aws:s3:::acme-finance-exports"
 }
 
-run "the_compromised_identity_looks_like_a_real_service_account" {
+run "the_compromised_identity_can_run_the_attack_but_is_not_admin" {
   command = plan
+
+  # The scenario needs this key to enumerate, read the finance data, and mint a
+  # credential on another identity. A pure S3-read key cannot be the subject of
+  # this breach, and an admin key makes it trivial. So the assertion is two-sided:
+  # the persistence action must be grantable, and full administrative access must
+  # not be.
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_iam_user_policy.billing_export.policy).Statement :
+      contains(statement.Action, "iam:CreateAccessKey")
+    ])
+    error_message = "The attack establishes persistence with iam:CreateAccessKey; without this grant the compromised key cannot, and there is no orphaned key for the harness to find."
+  }
 
   assert {
     condition = alltrue([
       for statement in jsondecode(aws_iam_user_policy.billing_export.policy).Statement :
-      statement.Resource != ["*"] || statement.Sid == "ReadCostData"
+      !contains(statement.Action, "*") && !contains(statement.Action, "iam:*")
     ])
-    error_message = "iam-blast-radius reads this policy to answer what the attacker could reach; an identity with wildcard access makes the scenario trivial and one with nothing makes it pointless."
+    error_message = "An identity with AdministratorAccess makes the scenario trivial; the over-permission is specific grants that accumulated, not a wildcard."
   }
 }
 

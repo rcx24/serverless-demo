@@ -16,12 +16,24 @@
 
 # The compromised identity.
 #
-# Its policy is written as a real billing-export service account would be: read
-# the exports bucket, read Cost Explorer, nothing else. That plausibility is
-# load-bearing -- `iam-blast-radius` reads this policy to answer "what could they
-# reach", and the honest answer has to be interesting but bounded. An identity
-# with AdministratorAccess would make the scenario trivial; one with nothing would
-# make it pointless.
+# The scenario requires this key to do cloud discovery and to establish
+# persistence, so it cannot be a pure S3-read credential -- a least-privilege key
+# is not the subject of this kind of breach, it is the thing that prevents one.
+# The realistic and instructive answer is an *over-permissioned service account*,
+# which is one of the most common real-world findings: a credential that started
+# scoped and accumulated grants.
+#
+# Its policy tells that story honestly. The first two statements are its actual
+# job -- read the exports bucket, read Cost Explorer. The third is the
+# over-permission, and it is the blast-radius finding the analyst is meant to
+# report: broad IAM read "for cost attribution", plus the ability to mint access
+# keys that nobody scoped. That last grant is precisely what lets the attacker
+# establish persistence on a second identity, and reading this policy is how the
+# analyst explains how they could.
+#
+# It stops well short of AdministratorAccess. An identity that can do everything
+# makes the scenario trivial; this one can enumerate, read the finance data, and
+# create credentials -- interesting, bounded, and exactly enough to run the attack.
 resource "aws_iam_user" "billing_export" {
   name = "svc-billing-export"
   path = "/service/"
@@ -50,6 +62,31 @@ resource "aws_iam_user_policy" "billing_export" {
         Sid      = "ReadCostData"
         Effect   = "Allow"
         Action   = ["ce:Get*", "ce:Describe*", "ce:List*"]
+        Resource = ["*"]
+      },
+      {
+        # The over-permission, and the finding. Granted for "cost attribution
+        # needs to map spend to users and roles", which justifies the read -- and
+        # then CreateAccessKey rode in on a broad iam: grant nobody tightened.
+        # This is what the attacker used, and what iam-blast-radius reports.
+        Sid    = "OverBroadIamForCostAttribution"
+        Effect = "Allow"
+        Action = [
+          "iam:Get*",
+          "iam:List*",
+          "iam:GenerateCredentialReport",
+          "iam:CreateAccessKey",
+        ]
+        Resource = ["*"]
+      },
+      {
+        # Cross-region inventory, "so the cost tool can see instances everywhere".
+        # This is what makes the discovery calls in unused regions succeed rather
+        # than return AccessDenied -- which is the difference between the timeline
+        # reading as reconnaissance and reading as a blocked attempt.
+        Sid      = "DescribeTheEstate"
+        Effect   = "Allow"
+        Action   = ["ec2:Describe*"]
         Resource = ["*"]
       },
     ]
