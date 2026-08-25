@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.getserverless.ai/serverless-demo/iocs.schema.json",
+  "title": "Indicators of compromise",
+  "description": "Structured for import, not for reading. Every indicator carries the events it was observed in, because a blocklist entry nobody can trace back to a reason is one nobody will ever be willing to remove.\n\nThe access-key and principal sections are the ones that matter here: an IP blocklist is the reflex, but the credential that is still active is the finding. They are separate arrays rather than one polymorphic list so that an importer can take the half it understands and ignore the rest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "generatedAt", "indicators"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string" },
+    "alertId": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "indicators": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ipv4": { "type": "array", "items": { "$ref": "#/$defs/indicator" } },
+        "asn": { "type": "array", "items": { "$ref": "#/$defs/indicator" } },
+        "userAgent": { "type": "array", "items": { "$ref": "#/$defs/indicator" } },
+        "accessKeyId": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/indicator" },
+          "description": "Both keys belong here -- the one the attacker used and the one they minted. An extraction that returns only the first is the same miss the SOAR made."
+        },
+        "principalArn": { "type": "array", "items": { "$ref": "#/$defs/indicator" } },
+        "s3Object": { "type": "array", "items": { "$ref": "#/$defs/indicator" } }
+      }
+    }
+  },
+  "$defs": {
+    "indicator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "firstSeen", "observedIn"],
+      "properties": {
+        "value": { "type": "string" },
+        "firstSeen": { "type": "string", "format": "date-time" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "observedIn": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "CloudTrail event ids. The provenance that makes this indicator arguable rather than asserted."
+        },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "disposition": {
+          "enum": ["block", "monitor", "investigate", "benign"],
+          "description": "What to do about it, which is not the same as how sure we are. A high-confidence indicator can still be `monitor` -- the demo account's own egress host is the obvious case."
+        },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

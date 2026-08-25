@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.getserverless.ai/serverless-demo/soar-case.schema.json",
+  "title": "SOAR case and playbook run log",
+  "description": "What the automation did before anybody looked. The run log is the point of this document, not the case metadata around it: the analyst's second question in the demo is 'did containment work', and this is what they read to answer it. So every step records its own raw AWS response rather than a status the playbook decided on its own -- a step that says `succeeded` while its response says otherwise is exactly the discrepancy this demo exists to surface.\n\nNote what this schema does NOT have: a field for what the playbook did not do. Omissions are not recorded anywhere, by design and to be faithful to real SOAR. Finding the gap means comparing this log against the account, which is the analyst's job and the harness's job -- not a lookup.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "caseId", "alertId", "playbook", "startedAt", "steps", "disposition"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "caseId": { "type": "string", "pattern": "^CASE-[0-9]{8}-[a-z0-9]{6}$" },
+    "alertId": {
+      "type": "string",
+      "description": "The alert this case was opened from. One alert, one case: a case spanning two alerts is a correlation decision, and this playbook does not make those."
+    },
+    "runId": { "type": "string" },
+    "playbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": {
+          "type": "string",
+          "description": "Pinned in the log because the analyst's question is often 'is this the version that has the fix' -- and a playbook whose behaviour changed between runs is unreadable without it."
+        },
+        "trigger": { "type": "string" }
+      }
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "assignedAnalyst": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "queue": { "type": "string" }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "In execution order, which is also the order they are read in. Each step names one action against one target, because a step that touches two identities cannot be reported as having half worked.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stepId", "action", "target", "startedAt", "status"],
+        "properties": {
+          "stepId": { "type": "integer", "minimum": 1 },
+          "action": {
+            "type": "string",
+            "description": "The AWS API call the step made, as the API names it. Not a friendly paraphrase: the analyst is going to look for this string in CloudTrail, and a step that says `disabled the key` when the trail says `UpdateAccessKey` costs them the correlation."
+          },
+          "target": {
+            "type": "string",
+            "description": "The ARN or resource identifier acted on. This is the field the harness compares against the account when it verifies containment."
+          },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" },
+          "status": { "enum": ["succeeded", "failed", "skipped", "timed-out"] },
+          "rawResponse": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The AWS response verbatim, including the request id. Kept whole rather than summarised so that a step's claimed status can be checked against what the API actually returned."
+          },
+          "error": { "type": "string" }
+        }
+      }
+    },
+    "disposition": {
+      "enum": ["contained", "partially-contained", "not-contained", "false-positive"],
+      "description": "The playbook's own verdict, and worth reading as a claim rather than a fact. This playbook reports `contained` when every step it ran succeeded -- which is true, and is not the same as the incident being contained. That distance is the demo."
+    },
+    "notes": { "type": "string" }
+  }
+}

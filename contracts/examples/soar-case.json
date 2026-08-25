@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "caseId": "CASE-20260824-p6r2wt",
+  "alertId": "ALERT-20260824-k3n8vq",
+  "runId": "rehearsal-01",
+  "playbook": {
+    "name": "aws-compromised-access-key-containment",
+    "version": "2.4.1",
+    "trigger": "AWS-IAM-0041"
+  },
+  "startedAt": "2026-08-24T18:41:12Z",
+  "completedAt": "2026-08-24T18:41:29Z",
+  "assignedAnalyst": {
+    "name": "Unassigned",
+    "email": "soc-tier1@acme.invalid",
+    "queue": "cloud-tier1"
+  },
+  "steps": [
+    {
+      "stepId": 1,
+      "action": "iam:GetUser",
+      "target": "arn:aws:iam::111122223333:user/svc-billing-export",
+      "startedAt": "2026-08-24T18:41:12Z",
+      "completedAt": "2026-08-24T18:41:13Z",
+      "status": "succeeded",
+      "rawResponse": {
+        "User": {
+          "UserName": "svc-billing-export",
+          "Arn": "arn:aws:iam::111122223333:user/svc-billing-export",
+          "CreateDate": "2025-11-03T09:14:22Z"
+        },
+        "ResponseMetadata": { "RequestId": "4f1c9e2a-7b03-4d85-a19f-3c26d074be51" }
+      }
+    },
+    {
+      "stepId": 2,
+      "action": "iam:AttachUserPolicy",
+      "target": "arn:aws:iam::111122223333:user/svc-billing-export",
+      "startedAt": "2026-08-24T18:41:14Z",
+      "completedAt": "2026-08-24T18:41:19Z",
+      "status": "succeeded",
+      "rawResponse": {
+        "PolicyArn": "arn:aws:iam::111122223333:policy/soar-quarantine-deny-all",
+        "ResponseMetadata": { "RequestId": "a83b47d1-092c-4e6f-b5a8-71d0392fc4e7" }
+      }
+    },
+    {
+      "stepId": 3,
+      "action": "iam:ListAccessKeys",
+      "target": "arn:aws:iam::111122223333:user/svc-billing-export",
+      "startedAt": "2026-08-24T18:41:20Z",
+      "completedAt": "2026-08-24T18:41:21Z",
+      "status": "succeeded",
+      "rawResponse": {
+        "AccessKeyMetadata": [
+          {
+            "UserName": "svc-billing-export",
+            "AccessKeyId": "AKIAY7QW2XPLNVR4TDGH",
+            "Status": "Active",
+            "CreateDate": "2026-08-24T18:20:51Z"
+          }
+        ],
+        "ResponseMetadata": { "RequestId": "62e4a17b-38d5-4c90-9f13-8b7ea205c6d4" }
+      }
+    },
+    {
+      "stepId": 4,
+      "action": "iam:UpdateAccessKey",
+      "target": "AKIAY7QW2XPLNVR4TDGH",
+      "startedAt": "2026-08-24T18:41:22Z",
+      "completedAt": "2026-08-24T18:41:26Z",
+      "status": "succeeded",
+      "rawResponse": {
+        "ResponseMetadata": { "RequestId": "17d0c853-4a6e-49b2-8071-e5c93f42a8b6" }
+      }
+    },
+    {
+      "stepId": 5,
+      "action": "ticket:Create",
+      "target": "CASE-20260824-p6r2wt",
+      "startedAt": "2026-08-24T18:41:27Z",
+      "completedAt": "2026-08-24T18:41:29Z",
+      "status": "succeeded",
+      "rawResponse": {
+        "queue": "cloud-tier1",
+        "priority": "P2",
+        "ResponseMetadata": { "RequestId": "simulated" }
+      }
+    }
+  ],
+  "disposition": "contained",
+  "notes": "Quarantine policy attached and the alerting access key deactivated. Identity is no longer able to authenticate. Routed to cloud-tier1 for close-out."
+}

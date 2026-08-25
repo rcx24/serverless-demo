@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.getserverless.ai/serverless-demo/alert.schema.json",
+  "title": "Detection alert",
+  "description": "What the simulated SIEM raises at T-0. Shaped after a Splunk ES notable because that is the format most SOC teams recognise on sight, but every field here is one a Sentinel incident or a Panther alert also carries, so the same document dresses either way. Nothing in this file is inferred: every value is read back out of CloudTrail after the seed run confirms the events landed, which is why there is no field for anything CloudTrail does not record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "alertId", "rule", "severity", "detectedAt", "entity", "source", "mitre", "samples", "dedupeKey", "siemUrl"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Bumped only for a breaking change. The seed writes it and the runbooks read it, and those two travel in separate repositories -- so a harness cloned at one revision can be handed a bundle written by another."
+    },
+    "alertId": {
+      "type": "string",
+      "pattern": "^ALERT-[0-9]{8}-[a-z0-9]{6}$",
+      "description": "Date plus a run-scoped suffix. Sortable by eye, which matters when three rehearsal bundles are open in adjacent tabs."
+    },
+    "runId": {
+      "type": "string",
+      "description": "The seed run that produced this. Ties the alert back to the tagged AWS resources so teardown can prove it removed the right ones."
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "description": "The detection's stable identifier, as the SIEM would carry it." },
+        "name": { "type": "string", "description": "Human-readable rule title. This is the line that gets read aloud in the room." },
+        "description": { "type": "string" }
+      }
+    },
+    "severity": {
+      "enum": ["informational", "low", "medium", "high", "critical"],
+      "description": "Five levels rather than a 1-10 score: a number invites the question of what the other nine mean, and no SOC agrees on the answer."
+    },
+    "detectedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the detection fired, not when the activity happened. These differ by the CloudTrail delivery lag -- 5 to 15 minutes -- and the gap is deliberately visible. Real detections lag their telemetry; hiding it here would make the timeline the analyst builds disagree with the alert that started it."
+    },
+    "entity": {
+      "type": "object",
+      "description": "Who the detection is about. One principal and one credential, because an alert that names two identities is two alerts.",
+      "additionalProperties": false,
+      "required": ["principalArn", "principalType", "accessKeyId", "accountId"],
+      "properties": {
+        "principalArn": { "type": "string", "pattern": "^arn:aws:iam::[0-9]{12}:(user|role)/.+$" },
+        "principalType": { "enum": ["IAMUser", "AssumedRole"] },
+        "accessKeyId": {
+          "type": "string",
+          "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+          "description": "The credential that made the calls. AKIA for a long-lived user key, ASIA for a session -- the prefix is the fastest way to tell which, and an analyst will read it before they read anything else."
+        },
+        "accountId": { "type": "string", "pattern": "^[0-9]{12}$" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "Where the calls came from. Populated from CloudTrail's own sourceIPAddress and userAgent, with ASN and geo resolved afterwards -- so the IP is ground truth and the attribution around it is annotation.",
+      "additionalProperties": false,
+      "required": ["ip"],
+      "properties": {
+        "ip": { "type": "string" },
+        "asn": { "type": "integer" },
+        "asnOrg": { "type": "string" },
+        "country": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "city": { "type": "string" },
+        "userAgent": { "type": "string" }
+      }
+    },
+    "mitre": {
+      "type": "array",
+      "minItems": 1,
+      "description": "ATT&CK technique ids the seeded behaviour actually exhibits. Kept short and honest: a wall of loosely-related technique ids is the tell of a generated alert, and this audience knows the catalogue well enough to check.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["techniqueId", "name"],
+        "properties": {
+          "techniqueId": { "type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$" },
+          "name": { "type": "string" },
+          "tactic": { "type": "string" }
+        }
+      }
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "description": "Raw CloudTrail events, copied rather than summarised. Three to five because that is enough to show the shape of the activity and few enough that somebody can actually read them on a shared screen. These are the events an analyst will spot-check against the console, so they must match it exactly.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["eventTime", "eventName", "eventSource", "awsRegion"],
+        "properties": {
+          "eventId": { "type": "string" },
+          "eventTime": { "type": "string", "format": "date-time" },
+          "eventName": { "type": "string" },
+          "eventSource": { "type": "string" },
+          "awsRegion": { "type": "string" },
+          "sourceIPAddress": { "type": "string" },
+          "userAgent": { "type": "string" }
+        }
+      }
+    },
+    "dedupeKey": {
+      "type": "string",
+      "description": "What the SIEM would suppress on. Present so that firing the demo twice against one channel behaves the way the audience expects rather than stacking two identical alerts."
+    },
+    "siemUrl": {
+      "type": "string",
+      "description": "Back-link to the notable in the SIEM. Points at the simulated bot, and is the one field in this document that is honestly fictional -- so it is a single obvious placeholder rather than a plausible-looking deep link nobody can click."
+    }
+  }
+}

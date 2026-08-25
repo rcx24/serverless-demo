@@ -1,0 +1,37 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+tfplan
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Variable files hold account ids and the connector's external id. The two
+# exceptions below are committed on purpose: `account.auto.tfvars` is written by
+# the org apply and read by the demo root, and without it in git the next person
+# to clone this cannot plan at all. Neither file holds a secret -- an account id
+# is not one, and the external id is a replay guard that only has meaning
+# alongside a credential that is not here.
+*.tfvars
+!terraform/environments/*/account.auto.tfvars
+!terraform/environments/*/connector.auto.tfvars
+!terraform/org/accounts.auto.tfvars
+
+# Run output. Every bundle under here describes one seeded intrusion, and
+# `answer-key.md` says exactly what the analyst is supposed to find -- which is
+# the one document in this repo that must never reach the harness. Generated per
+# run rather than committed, so there is no revision of this repository in which
+# it exists to be cloned.
+artifacts/
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# Node (investigator build output, if built here rather than in the runbooks repo)
+node_modules/
+dist/
+
+.DS_Store

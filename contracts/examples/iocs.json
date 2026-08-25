@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "runId": "rehearsal-01",
+  "alertId": "ALERT-20260824-k3n8vq",
+  "generatedAt": "2026-08-24T18:41:31Z",
+  "indicators": {
+    "ipv4": [
+      {
+        "value": "13.212.44.91",
+        "firstSeen": "2026-08-24T18:22:14Z",
+        "lastSeen": "2026-08-24T18:29:18Z",
+        "observedIn": [
+          "8f2a1c74-3e5b-4d19-9a07-6c2f81be40d3",
+          "b41d7e90-25a8-4f63-8c1e-9d7a03f5b8c2",
+          "c9e30b15-7a42-49d8-b6f1-2e58c4a91076",
+          "d7b81f26-c034-4a57-9e2b-1f60a8d3925e",
+          "e2c94a83-1b76-4e05-8d3f-7a41b90c6528"
+        ],
+        "confidence": "high",
+        "disposition": "block",
+        "note": "Single source address for the whole sequence. Every call in the alert came from it."
+      }
+    ],
+    "asn": [
+      {
+        "value": "AS16509",
+        "firstSeen": "2026-08-24T18:22:14Z",
+        "lastSeen": "2026-08-24T18:29:18Z",
+        "observedIn": ["8f2a1c74-3e5b-4d19-9a07-6c2f81be40d3"],
+        "confidence": "medium",
+        "disposition": "monitor",
+        "note": "AMAZON-02. Blocking an entire hyperscaler ASN blocks most of the internet's automation along with the attacker, so this is an enrichment field rather than a blocklist entry."
+      }
+    ],
+    "userAgent": [
+      {
+        "value": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64",
+        "firstSeen": "2026-08-24T18:22:14Z",
+        "lastSeen": "2026-08-24T18:29:18Z",
+        "observedIn": ["8f2a1c74-3e5b-4d19-9a07-6c2f81be40d3"],
+        "confidence": "low",
+        "disposition": "investigate",
+        "note": "exec-env/EC2 says the caller was on an instance. Trivially forgeable, so it is a lead and not evidence."
+      }
+    ],
+    "accessKeyId": [
+      {
+        "value": "AKIAY7QW2XPLNVR4TDGH",
+        "firstSeen": "2026-08-24T18:22:14Z",
+        "lastSeen": "2026-08-24T18:29:18Z",
+        "observedIn": ["8f2a1c74-3e5b-4d19-9a07-6c2f81be40d3"],
+        "confidence": "high",
+        "disposition": "block",
+        "note": "The credential named in the alert. Deactivated by the playbook at 18:41:26Z."
+      }
+    ],
+    "principalArn": [
+      {
+        "value": "arn:aws:iam::111122223333:user/svc-billing-export",
+        "firstSeen": "2026-08-24T18:22:14Z",
+        "lastSeen": "2026-08-24T18:29:18Z",
+        "observedIn": ["8f2a1c74-3e5b-4d19-9a07-6c2f81be40d3"],
+        "confidence": "high",
+        "disposition": "investigate"
+      }
+    ],
+    "s3Object": [
+      {
+        "value": "s3://acme-finance-exports/exports/2026/07/cost-allocation-2026-07.csv",
+        "firstSeen": "2026-08-24T18:27:33Z",
+        "lastSeen": "2026-08-24T18:27:33Z",
+        "observedIn": ["d7b81f26-c034-4a57-9e2b-1f60a8d3925e"],
+        "confidence": "high",
+        "disposition": "investigate"
+      }
+    ]
+  }
+}

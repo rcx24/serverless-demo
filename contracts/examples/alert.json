@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "alertId": "ALERT-20260824-k3n8vq",
+  "runId": "rehearsal-01",
+  "rule": {
+    "id": "AWS-IAM-0041",
+    "name": "Cloud discovery and credential creation from unrecognised ASN",
+    "description": "A long-lived access key enumerated IAM and EC2 across regions with no prior activity, then created a new access key on a second identity. Fires on the combination, not on any single call."
+  },
+  "severity": "high",
+  "detectedAt": "2026-08-24T18:41:07Z",
+  "entity": {
+    "principalArn": "arn:aws:iam::111122223333:user/svc-billing-export",
+    "principalType": "IAMUser",
+    "accessKeyId": "AKIAY7QW2XPLNVR4TDGH",
+    "accountId": "111122223333"
+  },
+  "source": {
+    "ip": "13.212.44.91",
+    "asn": 16509,
+    "asnOrg": "AMAZON-02",
+    "country": "SG",
+    "city": "Singapore",
+    "userAgent": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64"
+  },
+  "mitre": [
+    { "techniqueId": "T1078.004", "name": "Valid Accounts: Cloud Accounts", "tactic": "Defense Evasion" },
+    { "techniqueId": "T1580", "name": "Cloud Infrastructure Discovery", "tactic": "Discovery" },
+    { "techniqueId": "T1098", "name": "Account Manipulation", "tactic": "Persistence" }
+  ],
+  "samples": [
+    {
+      "eventId": "8f2a1c74-3e5b-4d19-9a07-6c2f81be40d3",
+      "eventTime": "2026-08-24T18:22:14Z",
+      "eventName": "GetCallerIdentity",
+      "eventSource": "sts.amazonaws.com",
+      "awsRegion": "us-west-2",
+      "sourceIPAddress": "13.212.44.91",
+      "userAgent": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64"
+    },
+    {
+      "eventId": "b41d7e90-25a8-4f63-8c1e-9d7a03f5b8c2",
+      "eventTime": "2026-08-24T18:23:02Z",
+      "eventName": "GetAccountAuthorizationDetails",
+      "eventSource": "iam.amazonaws.com",
+      "awsRegion": "us-east-1",
+      "sourceIPAddress": "13.212.44.91",
+      "userAgent": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64"
+    },
+    {
+      "eventId": "c9e30b15-7a42-49d8-b6f1-2e58c4a91076",
+      "eventTime": "2026-08-24T18:24:41Z",
+      "eventName": "DescribeInstances",
+      "eventSource": "ec2.amazonaws.com",
+      "awsRegion": "sa-east-1",
+      "sourceIPAddress": "13.212.44.91",
+      "userAgent": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64"
+    },
+    {
+      "eventId": "d7b81f26-c034-4a57-9e2b-1f60a8d3925e",
+      "eventTime": "2026-08-24T18:27:33Z",
+      "eventName": "GetObject",
+      "eventSource": "s3.amazonaws.com",
+      "awsRegion": "us-west-2",
+      "sourceIPAddress": "13.212.44.91",
+      "userAgent": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64"
+    },
+    {
+      "eventId": "e2c94a83-1b76-4e05-8d3f-7a41b90c6528",
+      "eventTime": "2026-08-24T18:29:18Z",
+      "eventName": "CreateAccessKey",
+      "eventSource": "iam.amazonaws.com",
+      "awsRegion": "us-east-1",
+      "sourceIPAddress": "13.212.44.91",
+      "userAgent": "aws-cli/2.36.13 Python/3.14.6 Linux/6.1.0 exec-env/EC2 source/aarch64"
+    }
+  ],
+  "dedupeKey": "AWS-IAM-0041:111122223333:arn:aws:iam::111122223333:user/svc-billing-export",
+  "siemUrl": "https://siem.demo.invalid/notable/ALERT-20260824-k3n8vq"
+}
