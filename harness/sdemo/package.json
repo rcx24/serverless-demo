@@ -2,11 +2,13 @@
   "name": "@rcx24/sdemo",
   "version": "0.1.0",
   "description": "Read-only AWS investigation tool for the Serverless security demo harness.",
-  "bin": { "sdemo": "dist/sdemo.cjs" },
+  "bin": {
+    "sdemo": "dist/sdemo.cjs"
+  },
   "type": "module",
   "scripts": {
     "build": "esbuild src/sdemo.mjs --bundle --platform=node --format=cjs --outfile=dist/sdemo.cjs --banner:js='#!/usr/bin/env node'",
-    "test": "node --test test/"
+    "test": "node --test \"test/**/*.test.mjs\""
   },
   "dependencies": {
     "@aws-sdk/client-cloudtrail": "^3.600.0",
@@ -14,5 +16,7 @@
     "@aws-sdk/client-cloudwatch-logs": "^3.600.0",
     "@aws-sdk/credential-providers": "^3.600.0"
   },
-  "devDependencies": { "esbuild": "^0.23.0" }
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
 }
