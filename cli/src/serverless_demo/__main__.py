@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import configsync, lifecycle, seed, verify
+from . import configsync, containment, lifecycle, seed, teardown, verify
 from .config import ConfigError, load
 from .sessions import AccountMismatch, SessionError
 
@@ -126,6 +126,69 @@ def cmd_seed(config, args) -> int:
     return EXIT_OK
 
 
+def cmd_containment_check(config, args) -> int:
+    import json
+    from pathlib import Path
+    from datetime import datetime, timezone, timedelta
+    from . import sessions
+
+    artifacts_dir = config_mod_repo_root() / "artifacts" / args.run_id
+    alert = json.loads((artifacts_dir / "alert.json").read_text())
+    soar_case = json.loads((artifacts_dir / "soar-case.json").read_text())
+
+    # A generous lower bound on the window; the alert's own events fix the real one.
+    start = datetime.now(timezone.utc) - timedelta(hours=args.window_hours)
+
+    investigator = sessions.investigator(config, config.demo.investigator_external_id)
+    result = containment.verify(investigator, config, alert, soar_case, start)
+
+    report(f"Containment verification for {result.compromised_identity}")
+    report("")
+    report(f"  SOAR claimed: contained")
+    report(f"  quarantine policy present:  {'yes' if result.quarantine_confirmed else 'NO'}")
+    report(f"  alerting key disabled:      {'yes' if result.original_key_disabled else 'NO'}")
+    report("")
+    report("  Keys the compromised identity created:")
+    if not result.findings:
+        report("    (none found in the window)")
+    for finding in result.findings:
+        flag = "  <-- UNCONTAINED" if finding.is_orphan else ""
+        report(f"    {finding.identity:22} {finding.access_key_id}  {finding.status:9}"
+               f"  named in case: {'yes' if finding.named_in_soar else 'NO'}{flag}")
+        if finding.is_orphan and finding.reachable:
+            report(f"        can reach: {', '.join(finding.reachable)}")
+        report(f"        evidence: {finding.evidence_event_id}")
+
+    report("")
+    if result.orphans:
+        report(f"{len(result.orphans)} uncontained key(s). The automation reported full "
+               "containment and missed this.")
+        return EXIT_OK
+    report("No uncontained keys. Either the SOAR was complete or the seed did not establish "
+           "persistence.")
+    return EXIT_INCOMPLETE
+
+
+def config_mod_repo_root():
+    from .config import repo_root
+    return repo_root()
+
+
+def cmd_teardown(config, args) -> int:
+    report(f"Tearing down {config.demo.account_id}"
+           + (f" (run {args.run_id})" if args.run_id else ""))
+    report("")
+    result = teardown.run(config, args.run_id, report)
+    report("")
+    if result.clean:
+        report(f"Baseline restored. Deleted {len(result.deleted_keys)} key(s).")
+        return EXIT_OK
+    report("Account does NOT match baseline:")
+    for violation in result.baseline_violations:
+        report(f"  - {violation}")
+    return EXIT_INCOMPLETE
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="serverless-demo",
@@ -158,6 +221,17 @@ def build_parser() -> argparse.ArgumentParser:
     seed_cmd.add_argument("--confirm-timeout", type=int, default=1200,
                           help="Seconds to wait for CloudTrail. Default 20 minutes.")
     seed_cmd.set_defaults(handler=cmd_seed)
+
+    cc = sub.add_parser("containment-check",
+                        help="Derive uncontained keys from the alert, the trail and the SOAR case.")
+    cc.add_argument("--run-id", required=True, help="Which run's artifacts to read.")
+    cc.add_argument("--window-hours", type=int, default=2,
+                    help="How far back to search the trail. Default 2 hours.")
+    cc.set_defaults(handler=cmd_containment_check)
+
+    td = sub.add_parser("teardown", help="Revoke keys, undo containment, assert baseline.")
+    td.add_argument("--run-id", help="The run to tear down. Omit to clean whatever is present.")
+    td.set_defaults(handler=cmd_teardown)
 
     config_cmd = sub.add_parser("config", help="Manage demo.toml.")
     config_sub = config_cmd.add_subparsers(dest="config_command", required=True)
