@@ -6,7 +6,7 @@ This turns "a key is still active" into a sentence someone can act on.
 ## Procedure
 
 ```
-sdemo identity --name <identity> --expand
+serverless-aws identity --name <identity>
 ```
 
 `--expand` resolves the identity's attached managed policies, its inline policies,

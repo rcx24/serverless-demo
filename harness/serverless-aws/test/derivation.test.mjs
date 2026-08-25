@@ -1,5 +1,5 @@
 // The two properties that make containment-check trustworthy, tested without AWS.
-// Mirrors the Python test_containment.py, because sdemo and the seed CLI must
+// Mirrors the Python test_containment.py, because serverless-aws and the seed CLI must
 // derive the same finding from the same evidence -- if they diverge, the demo the
 // harness runs disagrees with the rehearsal that validated it.
 

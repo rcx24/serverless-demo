@@ -6,7 +6,7 @@ the detection already gave you and add what the investigation found.
 ## Procedure
 
 ```
-sdemo iocs --run <run-id>
+serverless-aws iocs
 ```
 
 This emits the indicators the seed detection surfaced. Then add what *you* found

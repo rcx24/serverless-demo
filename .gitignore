@@ -41,5 +41,5 @@ out/
 
 # sdemo build output and deps. The bundle is published to npm, and the harness
 # installs it from there via the tool catalog -- it is not committed here.
-harness/sdemo/dist/
-harness/sdemo/node_modules/
+harness/serverless-aws/dist/
+harness/serverless-aws/node_modules/

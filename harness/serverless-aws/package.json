@@ -1,13 +1,13 @@
 {
-  "name": "@rcx24/sdemo",
+  "name": "@rcx24/serverless-aws",
   "version": "0.1.0",
-  "description": "Read-only AWS investigation tool for the Serverless security demo harness.",
+  "description": "Serverless AI \u2014 read-only AWS investigation CLI. Reads credentials a connector delivered; makes no changes.",
   "bin": {
-    "sdemo": "dist/sdemo.cjs"
+    "serverless-aws": "dist/serverless-aws.cjs"
   },
   "type": "module",
   "scripts": {
-    "build": "esbuild src/sdemo.mjs --bundle --platform=node --format=cjs --outfile=dist/sdemo.cjs --banner:js='#!/usr/bin/env node'",
+    "build": "esbuild src/serverless-aws.mjs --bundle --platform=node --format=cjs --outfile=dist/serverless-aws.cjs --banner:js='#!/usr/bin/env node'",
     "test": "node --test \"test/**/*.test.mjs\""
   },
   "dependencies": {

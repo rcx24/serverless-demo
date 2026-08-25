@@ -11,14 +11,14 @@ Reconstruct what the compromised key did, in order, and flag what is anomalous.
 2. Pull every event that key made:
 
    ```
-   sdemo timeline --access-key <AKIA...> --since <ISO8601>
+   serverless-aws timeline --access-key <AKIA...> --since <ISO8601>
    ```
 
-   `sdemo` queries each region the events could be in — this matters, and it is
+   `serverless-aws` queries each region the events could be in — this matters, and it is
    the trap a manual investigation falls into. CloudTrail Event History is *per
    region*. IAM is a global service and logs only to us-east-1; calls to other
    regions log in those regions; object reads are data events and are not in Event
-   History at all. `sdemo timeline` handles this; if you query one region by hand
+   History at all. `serverless-aws timeline` handles this; if you query one region by hand
    you will see a fraction of the activity and conclude too little happened.
 
 3. Read the sequence for shape, not just contents. A compromised credential
@@ -34,11 +34,11 @@ Reconstruct what the compromised key did, in order, and flag what is anomalous.
 
 ## What to flag
 
-- **Cross-region activity.** `sdemo timeline` marks the region of each call. If the
+- **Cross-region activity.** `serverless-aws timeline` marks the region of each call. If the
   key called `DescribeInstances` in regions the organization does not operate in,
   that is discovery, and it is one of the clearest signals in the whole timeline.
   Note which regions.
-- **The source address.** Every call in this incident came from one IP. `sdemo
+- **The source address.** Every call in this incident came from one IP. `serverless-aws
   timeline` shows it. Note it for `ioc-extraction.md`.
 - **Any call that creates or modifies an identity or credential.**
   `CreateAccessKey`, `CreateUser`, `AttachUserPolicy`, `PutUserPolicy`. These are

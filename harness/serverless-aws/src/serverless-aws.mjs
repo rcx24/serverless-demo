@@ -1,31 +1,27 @@
-// sdemo -- read-only AWS investigation for the demo harness.
+// serverless-aws -- read-only AWS investigation.
 //
-// The harness-side companion to the seed CLI's containment logic. It authenticates
-// as the read-only investigation role (via ~/.aws/config, which the tool catalog
-// wrote), and it cannot read an object or modify a credential -- the same posture
-// the runbooks describe. Every subcommand answers one question a runbook asks.
+// Reads credentials from ~/.aws/config (which the AWS connector writes) and makes
+// no changes to anything. Every subcommand answers one question a runbook asks,
+// and nothing here needs configuration: the account and the key come from the
+// alert being investigated, and the one region that is not obvious (IAM's
+// us-east-1) is a constant, not a setting.
 
 import { readFileSync } from 'node:fs'
 import { eventsForKey, keysCreated, accessKeys, identityPolicies, IAM_REGION } from './aws.mjs'
 
-const HOME_REGION = process.env.SDEMO_HOME_REGION || 'us-west-2'
-const DISCOVERY_REGIONS = (process.env.SDEMO_DISCOVERY_REGIONS ||
-  'ap-northeast-1,eu-central-1,sa-east-1,ap-south-1').split(',')
-
-function allRegions() {
-  return [...new Set([HOME_REGION, IAM_REGION, ...DISCOVERY_REGIONS])]
-}
+// Where the runbooks put the artifacts. Looked up in order; the agent runs from
+// the workspace, and the clone lands under it.
+const ARTIFACT_DIRS = ['runbooks/artifacts', 'artifacts', '.']
 
 function loadArtifact(name) {
-  // Runbooks reference runbooks/artifacts/<name>. Look there and in cwd.
-  for (const path of [`runbooks/artifacts/${name}`, `artifacts/${name}`, name]) {
-    try { return JSON.parse(readFileSync(path, 'utf8')) } catch {}
+  for (const dir of ARTIFACT_DIRS) {
+    try { return JSON.parse(readFileSync(`${dir}/${name}`, 'utf8')) } catch {}
   }
-  throw new Error(`could not find ${name} (looked in runbooks/artifacts/ and .)`)
+  throw new Error(`could not find ${name} (looked in ${ARTIFACT_DIRS.join(', ')})`)
 }
 
 function fail(message) {
-  process.stderr.write(`sdemo: ${message}\n`)
+  process.stderr.write(`serverless-aws: ${message}\n`)
   process.exit(1)
 }
 
@@ -34,26 +30,51 @@ function arg(argv, name) {
   return i >= 0 ? argv[i + 1] : undefined
 }
 
-async function cmdTimeline(argv) {
-  const key = arg(argv, 'access-key') || loadArtifact('alert.json').entity?.accessKeyId
-  if (!key) fail('no access key given and none in alert.json')
-  const since = new Date(arg(argv, 'since') || Date.now() - 2 * 3600 * 1000)
+// The regions to search, derived rather than configured. Every region the alert's
+// own events touch, plus us-east-1 for the IAM events that log nowhere else. This
+// is what removes the SDEMO_DISCOVERY_REGIONS env var: the alert already names the
+// regions the attacker used, in its samples.
+function regionsFromAlert(alert) {
+  const regions = new Set([IAM_REGION])
+  for (const sample of alert?.samples ?? []) {
+    if (sample.awsRegion) regions.add(sample.awsRegion)
+  }
+  return [...regions]
+}
 
-  const events = await eventsForKey(key, allRegions(), since)
+function windowStart(argv, alert) {
+  if (arg(argv, 'since')) return new Date(arg(argv, 'since'))
+  // The earliest sampled event, less a margin, so nothing is missed at the edge.
+  const times = (alert?.samples ?? []).map(s => new Date(s.eventTime)).filter(d => !isNaN(d))
+  if (times.length) return new Date(Math.min(...times) - 30 * 60 * 1000)
+  return new Date(Date.now() - 2 * 3600 * 1000)
+}
+
+async function cmdTimeline(argv) {
+  const alert = safeAlert()
+  const key = arg(argv, 'access-key') || alert?.entity?.accessKeyId
+  if (!key) fail('no access key given and none in alert.json')
+  const regions = arg(argv, 'regions') ? arg(argv, 'regions').split(',') : regionsFromAlert(alert)
+  const since = windowStart(argv, alert)
+
+  const events = await eventsForKey(key, regions, since)
   if (!events.length) { console.log('No events for that key in the window.'); return }
 
   console.log(`Timeline for ${key} (${events.length} events)\n`)
-  const regions = new Set()
+  const seen = new Set()
   let sourceIp = ''
   for (const e of events) {
-    regions.add(e.awsRegion)
-    sourceIp = sourceIp || (e.sourceIPAddress?.includes('amazonaws.com') ? '' : e.sourceIPAddress)
+    seen.add(e.awsRegion)
+    if (!sourceIp && e.sourceIPAddress && !e.sourceIPAddress.includes('amazonaws.com')) {
+      sourceIp = e.sourceIPAddress
+    }
     console.log(`  ${e.eventTime}  ${e.awsRegion.padEnd(15)} ${e.eventName}`)
   }
-  const unusual = [...regions].filter(r => DISCOVERY_REGIONS.includes(r))
   console.log('')
   if (sourceIp) console.log(`  source address: ${sourceIp}`)
-  if (unusual.length) console.log(`  cross-region discovery in unused regions: ${unusual.join(', ')}`)
+  const homeGuess = alert?.samples?.find(s => s.eventName === 'GetCallerIdentity')?.awsRegion
+  const unusual = [...seen].filter(r => r !== IAM_REGION && r !== homeGuess)
+  if (unusual.length) console.log(`  activity in other regions: ${unusual.join(', ')}`)
   const created = keysCreated(events)
   if (created.length) {
     console.log(`  credential creation: ${created.map(c => `${c.accessKeyId} on ${c.identity}`).join(', ')}`)
@@ -68,7 +89,10 @@ async function cmdIdentity(argv) {
   const policies = await identityPolicies(name)
   console.log(`Identity ${name}\n`)
   console.log('  access keys:')
-  for (const k of keys) console.log(`    ${k.id}  ${k.status}  created ${k.created?.toISOString?.() ?? k.created}`)
+  for (const k of keys) {
+    const created = k.created?.toISOString?.() ?? k.created
+    console.log(`    ${k.id}  ${k.status}  created ${created}`)
+  }
   if (!keys.length) console.log('    (none)')
   console.log('  policies:')
   for (const p of policies) console.log(`    ${p}`)
@@ -81,17 +105,16 @@ async function cmdContainmentCheck(argv) {
   const compromisedKey = alert.entity?.accessKeyId
   const compromised = alert.entity?.principalArn?.split('/').pop()
   if (!compromisedKey) fail('alert.json has no entity.accessKeyId')
+  const since = windowStart(argv, alert)
 
-  const since = new Date(arg(argv, 'since') || Date.now() - 2 * 3600 * 1000)
-
-  // Confirm the half the SOAR claims.
+  // Confirm the half the SOAR claims. All IAM, so region-agnostic.
   const compromisedKeys = await accessKeys(compromised)
   const originalDisabled = compromisedKeys.some(k => k.id === compromisedKey && k.status === 'Inactive')
   const policies = await identityPolicies(compromised)
   const quarantined = policies.some(p => p.toLowerCase().includes('quarantine'))
 
-  // Derive what it missed: keys the compromised key created that the SOAR never named.
-  const events = await eventsForKey(compromisedKey, allRegions(), since)
+  // Derive what it missed. CreateAccessKey is an IAM event -> us-east-1 only.
+  const events = await eventsForKey(compromisedKey, [IAM_REGION], since)
   const created = keysCreated(events)
   const soarNamed = new Set((soarCase.steps ?? []).map(s => s.target))
 
@@ -117,12 +140,9 @@ async function cmdContainmentCheck(argv) {
   }
   const orphans = findings.filter(f => f.orphan)
   console.log('')
-  if (orphans.length) {
-    console.log(`${orphans.length} uncontained key(s). The automation reported containment and missed this.`)
-    process.exitCode = 0
-  } else {
-    console.log('No uncontained keys found.')
-  }
+  console.log(orphans.length
+    ? `${orphans.length} uncontained key(s). The automation reported containment and missed this.`
+    : 'No uncontained keys found.')
 }
 
 async function cmdIocs() {
@@ -135,15 +155,21 @@ async function cmdIocs() {
   console.log('access key from containment-verification -- before importing.')
 }
 
-const HELP = `sdemo -- read-only AWS investigation
+function safeAlert() {
+  try { return loadArtifact('alert.json') } catch { return null }
+}
 
-  sdemo timeline [--access-key AKIA... | from alert.json] [--since ISO]
-  sdemo identity --name <user> [--expand]
-  sdemo containment-check [--since ISO]
-  sdemo iocs
+const HELP = `serverless-aws -- read-only AWS investigation
 
-Authenticates as the read-only investigation role. Cannot read S3 objects or
-modify credentials -- if you need either, that is a finding, not an action.`
+  serverless-aws timeline [--access-key AKIA... | from alert.json] [--since ISO] [--regions r1,r2]
+  serverless-aws identity --name <user>
+  serverless-aws containment-check
+  serverless-aws iocs
+
+Reads credentials from ~/.aws/config and makes no changes. Nothing to configure --
+the account and key come from alert.json, and IAM's region is a constant. If a
+call is refused (reading an object, changing a credential), that is a finding to
+report, not something to work around.`
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2)

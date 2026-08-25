@@ -7,10 +7,11 @@ escalate.
 
 ## What you have
 
-- **`sdemo`** is on your PATH. It is a read-only AWS investigation tool that
-  authenticates as the investigation role for this account. Run `sdemo --help`.
-  It cannot read S3 object contents and cannot modify any credential -- if you
-  need either, that is a finding to report, not a thing to do.
+- **`serverless-aws`** is on your PATH. It is a read-only AWS investigation tool.
+  It already has credentials and needs no setup -- run `serverless-aws --help` and
+  use it. It authenticates as a read-only role: it cannot read S3 object contents
+  and cannot modify any credential. If a call is refused, that is a finding to
+  report, not a thing to work around.
 - The alert, the SOAR case, and the extracted indicators are in
   `runbooks/artifacts/` as `alert.json`, `soar-case.json`, and `iocs.json`.
 - The runbooks below. Each is a procedure, not a script to run blindly -- read the
@@ -24,7 +25,7 @@ alert says.
 Two principles hold throughout:
 
 1. **Confirm before you conclude.** Every claim you make about the account should
-   be backed by something `sdemo` returned or an event in the trail. "The key is
+   be backed by something `serverless-aws` returned or an event in the trail. "The key is
    disabled" means you checked its status, not that the SOAR case said so.
 
 2. **The SOAR case is the automation's account of what it did, not the ground

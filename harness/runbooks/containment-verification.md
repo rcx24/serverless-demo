@@ -27,7 +27,7 @@ From `soar-case.json`, read the steps. It typically claims to have quarantined t
 identity and disabled its key. Verify both against the account:
 
 ```
-sdemo identity --name <compromised-user>
+serverless-aws identity --name <compromised-user>
 ```
 
 This shows the identity's attached policies and the status of each of its access
@@ -41,10 +41,10 @@ This is the step that surfaces what automation misses. The compromised key may
 have created credentials on identities the SOAR never looked at.
 
 ```
-sdemo containment-check --run <run-id>
+serverless-aws containment-check
 ```
 
-`sdemo containment-check` does the derivation for you, and it is worth
+`serverless-aws containment-check` does the derivation for you, and it is worth
 understanding what it does rather than treating it as a black box, because you may
 have to defend the finding:
 
@@ -64,7 +64,7 @@ have to defend the finding:
 For anything `containment-check` flags, confirm it is real and current:
 
 ```
-sdemo identity --name <flagged-identity>
+serverless-aws identity --name <flagged-identity>
 ```
 
 The flagged key should show as `Active`. If it does, the automation reported
