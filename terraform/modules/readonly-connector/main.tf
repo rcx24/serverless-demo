@@ -65,27 +65,38 @@ locals {
 
       # Querying object reads without being able to read an object.
       #
-      # This is the whole reason the demo uses Lake rather than a trail in a bucket.
-      # `StartQuery` is scoped to the one store rather than granted on `*`, so a store
-      # somebody adds later for an unrelated purpose is not readable by this role.
+      # This is the whole reason the trail delivers to CloudWatch Logs. The
+      # objects the attacker read are data events, which never appear in Event
+      # History -- and the only other copy is trail files in S3, which would need
+      # the `s3:GetObject` denied below to read. Logs Insights closes that gap
+      # without opening this one.
       #
-      # GetQueryResults takes a query id rather than a store ARN, so it cannot be
-      # resource-scoped -- the scoping on StartQuery is what bounds it, since a query
-      # id can only exist for a store this role was allowed to query in the first
-      # place.
+      # Scoped to the one log group rather than granted on `*`, so a group
+      # somebody adds later for an unrelated purpose is not readable here.
       {
-        Sid      = "QueryTheEventDataStore"
-        Effect   = "Allow"
-        Action   = ["cloudtrail:StartQuery"]
-        Resource = [var.event_data_store_arn]
+        Sid    = "QueryTheTrail"
+        Effect = "Allow"
+        Action = [
+          "logs:StartQuery",
+          "logs:FilterLogEvents",
+          "logs:GetLogEvents",
+          "logs:DescribeLogStreams",
+        ]
+        Resource = ["${var.log_group_arn}:*"]
       },
+
+      # GetQueryResults and StopQuery take a query id rather than a log group, so
+      # they cannot be resource-scoped. The scoping on StartQuery is what bounds
+      # them: a query id can only exist for a group this role was permitted to
+      # query in the first place.
       {
         Sid    = "ReadQueryResults"
         Effect = "Allow"
         Action = [
-          "cloudtrail:GetQueryResults",
-          "cloudtrail:DescribeQuery",
-          "cloudtrail:CancelQuery",
+          "logs:GetQueryResults",
+          "logs:StopQuery",
+          "logs:DescribeQueries",
+          "logs:DescribeLogGroups",
         ]
         Resource = ["*"]
       },

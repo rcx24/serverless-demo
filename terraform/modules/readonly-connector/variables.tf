@@ -26,8 +26,15 @@ variable "external_id" {
   }
 }
 
-variable "event_data_store_arn" {
-  description = "The CloudTrail Lake store the investigator may query. Named explicitly rather than granted as cloudtrail:StartQuery on *, so the role cannot query a store somebody adds later for another purpose."
+variable "log_group_arn" {
+  description = <<-EOT
+    The CloudWatch log group the trail delivers to, and the only place this role
+    may query.
+
+    This was a CloudTrail Lake event data store until AWS closed Lake to new
+    customers. The property that mattered is unchanged: the investigator can
+    prove which objects were read without holding s3:GetObject.
+  EOT
   type        = string
 }
 

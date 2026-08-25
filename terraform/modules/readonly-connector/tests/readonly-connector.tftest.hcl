@@ -5,10 +5,10 @@
 mock_provider "aws" {}
 
 variables {
-  trusted_account_id   = "429418377902"
-  external_id          = "demo-external-id-long-enough"
-  event_data_store_arn = "arn:aws:cloudtrail:us-west-2:431662316594:eventdatastore/abc"
-  exports_bucket_arn   = "arn:aws:s3:::acme-finance-exports"
+  trusted_account_id = "429418377902"
+  external_id        = "demo-external-id-long-enough"
+  log_group_arn      = "arn:aws:logs:us-west-2:431662316594:log-group:/aws/cloudtrail/serverless-demo"
+  exports_bucket_arn = "arn:aws:s3:::acme-finance-exports"
 }
 
 run "an_object_can_never_be_read" {
@@ -58,15 +58,28 @@ run "the_trust_requires_an_external_id" {
   }
 }
 
-run "lake_queries_are_scoped_to_one_store" {
+run "trail_queries_are_scoped_to_one_log_group" {
   command = plan
 
   assert {
     condition = alltrue([
       for s in local.investigator_policy.Statement :
-      try(s.Resource, "*") != "*"
-      if s.Effect == "Allow" && contains(try(tolist(s.Action), [s.Action]), "cloudtrail:StartQuery")
+      alltrue([for r in s.Resource : r != "*"])
+      if s.Effect == "Allow" && contains(try(tolist(s.Action), [s.Action]), "logs:StartQuery")
     ])
-    error_message = "StartQuery on * would let this role read a data store somebody adds later for an unrelated purpose."
+    error_message = "StartQuery on * would let this role read a log group somebody adds later for an unrelated purpose."
+  }
+}
+
+run "the_trail_delivery_bucket_is_not_readable" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for s in local.investigator_policy.Statement :
+      !contains(try(tolist(s.Action), [s.Action]), "s3:GetObject")
+      if s.Effect == "Allow"
+    ])
+    error_message = "Reading trail files out of the delivery bucket is the shortcut that would trade away this demo's cleanest claim; the log group exists so nobody needs to."
   }
 }

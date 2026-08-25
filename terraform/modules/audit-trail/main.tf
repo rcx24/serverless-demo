@@ -1,48 +1,154 @@
-# What makes the intrusion visible to the analyst.
+# What makes the seeded intrusion visible to the analyst.
 #
-# Two things, and the split between them matters:
+# Three things:
 #
-#   CloudTrail Lake  queryable history, including S3 object reads
-#   GuardDuty        AWS's own opinion about the same behaviour
+#   a trail        capturing management events and S3 object reads
+#   CloudWatch Logs where the analyst actually queries them
+#   GuardDuty      AWS's own opinion about the same behaviour
 #
-# There is deliberately no classic trail here. Management events are already in
-# Event History for 90 days with nothing configured, which is what
-# `cloudtrail:LookupEvents` reads and what a real analyst reaches for first. A
-# trail would add an S3 bucket of JSON that nobody queries and that the read-only
-# role would need `s3:GetObject` to read -- the exact permission this demo
-# promises not to have.
+# This module used to use a CloudTrail Lake event data store, which was the
+# natural fit. It is gone: AWS closed Lake to new customers, and
+# `CreateEventDataStore` now returns "CloudTrail Lake is no longer accepting new
+# customers" in any account that did not already have one. Nothing in the AWS
+# provider or the documentation says so up front, so the failure arrives forty
+# resources into an apply.
 #
-# Lake exists here for one reason: `s3:GetObject` is a *data* event, and data
-# events never appear in Event History at any lag. Without this, the "which
-# objects did they take" half of the story is not merely delayed, it is
-# permanently invisible. Lake makes those events queryable through
-# `cloudtrail:StartQuery`, which is an API the read-only role can hold without
-# ever being able to read an object.
+# The problem Lake was solving has not gone away. `s3:GetObject` is a *data*
+# event, and data events never appear in Event History at any lag -- not delayed,
+# absent. Without somewhere to put them, the "which objects did they take" half
+# of the story cannot be told at all.
+#
+# CloudWatch Logs solves it and keeps the property that mattered. The trail
+# delivers to a log group, the investigator queries it with Logs Insights, and the
+# role needs `logs:StartQuery` rather than `s3:GetObject` -- so the analyst can
+# still prove which objects were read while being unable to read one. Reading raw
+# trail files out of the delivery bucket would have required exactly the
+# permission this demo promises not to have.
+#
+# It is arguably the better tool for the audience anyway: a SOC analyst has
+# written a Logs Insights query before, and has probably never written Lake SQL.
 
-resource "aws_cloudtrail_event_data_store" "this" {
-  name             = "${var.name_prefix}-events"
-  retention_period = var.retention_days
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
 
-  # Non-negotiable, and the reason is easy to miss: Event History and
-  # `LookupEvents` are *regional*. The seeded attack calls `ec2:DescribeInstances`
-  # in three or four regions the organization does not use, and those events land
-  # only in those regions' histories -- a query in us-west-2 returns none of them.
-  # Cross-region discovery is the clearest signal in the whole timeline, so the
-  # one store that can see all of it has to be multi-region.
-  multi_region_enabled = true
+locals {
+  # Known at plan time, which is what lets other modules' IAM policies be
+  # asserted in CI rather than at apply.
+  trail_bucket_name = "${var.name_prefix}-trail-${data.aws_caller_identity.current.account_id}"
+  log_group_name    = "/aws/cloudtrail/${var.name_prefix}"
+}
 
-  # One account. The demo account's own activity is the whole subject, and an
-  # organization-wide store would pull in the management account's unrelated
-  # production traffic for the analyst to wade through.
-  organization_enabled = false
+# Required by CloudTrail, and read by nobody.
+#
+# A trail has to deliver to S3 whether or not anything reads it. The investigator
+# role is never granted access here -- it queries the log group instead, which is
+# the whole point of the CloudWatch integration below.
+resource "aws_s3_bucket" "trail" {
+  bucket        = local.trail_bucket_name
+  force_destroy = true
 
-  # Off deliberately. `serverless-demo teardown` has to be able to return the
-  # account to baseline without a human clicking through a console confirmation,
-  # and this store holds nothing that is not reproducible by re-running the seed.
-  termination_protection_enabled = false
+  tags = merge(var.tags, { Name = local.trail_bucket_name })
+}
 
-  # Management events, everywhere, including the read-only calls the attack makes
-  # in regions the organization does not use.
+resource "aws_s3_bucket_public_access_block" "trail" {
+  bucket = aws_s3_bucket.trail.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_policy" "trail" {
+  bucket = aws_s3_bucket.trail.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AWSCloudTrailAclCheck"
+        Effect    = "Allow"
+        Principal = { Service = "cloudtrail.amazonaws.com" }
+        Action    = "s3:GetBucketAcl"
+        Resource  = aws_s3_bucket.trail.arn
+      },
+      {
+        Sid       = "AWSCloudTrailWrite"
+        Effect    = "Allow"
+        Principal = { Service = "cloudtrail.amazonaws.com" }
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.trail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Condition = {
+          StringEquals = { "s3:x-amz-acl" = "bucket-owner-full-control" }
+        }
+      },
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource  = [aws_s3_bucket.trail.arn, "${aws_s3_bucket.trail.arn}/*"]
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
+        }
+      },
+    ]
+  })
+}
+
+# Where the analyst actually looks.
+resource "aws_cloudwatch_log_group" "trail" {
+  name              = local.log_group_name
+  retention_in_days = var.retention_days
+
+  tags = merge(var.tags, { Name = local.log_group_name })
+}
+
+resource "aws_iam_role" "trail_to_logs" {
+  name = "${var.name_prefix}-trail-to-logs"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "cloudtrail.amazonaws.com" }
+    }]
+  })
+
+  tags = merge(var.tags, { Name = "${var.name_prefix}-trail-to-logs" })
+}
+
+resource "aws_iam_role_policy" "trail_to_logs" {
+  name = "deliver"
+  role = aws_iam_role.trail_to_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource = ["${aws_cloudwatch_log_group.trail.arn}:*"]
+    }]
+  })
+}
+
+resource "aws_cloudtrail" "this" {
+  name           = "${var.name_prefix}-trail"
+  s3_bucket_name = aws_s3_bucket.trail.id
+
+  # Non-negotiable, and easy to miss: Event History and `LookupEvents` are
+  # *regional*. The seeded attack calls `ec2:DescribeInstances` in three or four
+  # regions the organization does not use, and those events land only in those
+  # regions' histories -- a query in the home region returns none of them.
+  # Cross-region discovery is the clearest signal in the whole timeline.
+  is_multi_region_trail         = true
+  include_global_service_events = true
+  enable_log_file_validation    = true
+
+  cloud_watch_logs_group_arn = "${aws_cloudwatch_log_group.trail.arn}:*"
+  cloud_watch_logs_role_arn  = aws_iam_role.trail_to_logs.arn
+
   advanced_event_selector {
     name = "Management events"
 
@@ -52,11 +158,11 @@ resource "aws_cloudtrail_event_data_store" "this" {
     }
   }
 
-  # The half that Event History cannot show.
+  # The half Event History cannot show.
   #
   # Scoped to one bucket by ARN prefix rather than to `AWS::S3::Object` in
-  # general. Account-wide object logging would bill for every read of every
-  # bucket, and only this one is part of the story the analyst is reconstructing.
+  # general: account-wide object logging bills for every read of every bucket, and
+  # only this one is part of the story being reconstructed.
   advanced_event_selector {
     name = "Object reads on the finance exports bucket"
 
@@ -72,39 +178,35 @@ resource "aws_cloudtrail_event_data_store" "this" {
 
     field_selector {
       field       = "resources.ARN"
-      starts_with = ["arn:aws:s3:::${var.exports_bucket_name}/"]
+      starts_with = ["arn:${data.aws_partition.current.partition}:s3:::${var.exports_bucket_name}/"]
     }
   }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-events" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-trail" })
+
+  depends_on = [aws_s3_bucket_policy.trail]
 }
 
 # AWS's own detection, running on the same behaviour.
 #
-# This is the credibility multiplier and it is also the part of the demo nobody
-# controls: findings in the `Discovery:` and `UnauthorizedAccess:IAMUser/`
-# families need behavioural baselining, so a detector switched on the morning of a
-# demo may produce nothing at all. Enable it weeks early. The seed reports which
-# findings actually fired; nothing in the demo depends on any of them firing.
+# The credibility multiplier, and the part nobody controls: findings in the
+# `Discovery:` and `UnauthorizedAccess:IAMUser/` families need behavioural
+# baselining, so a detector switched on the morning of a demo may produce nothing
+# at all. Enable it weeks early. The seed reports which findings fired; nothing in
+# the demo depends on any of them firing, and it should stay that way.
 resource "aws_guardduty_detector" "this" {
   count = var.enable_guardduty ? 1 : 0
 
   enable = true
 
-  # Fifteen minutes rather than six hours. The demo seeds at T-30 and asks its
-  # first question at T-0, so a six-hour publishing interval would put every
-  # finding on the wrong side of the demo.
+  # Fifteen minutes rather than six hours: the demo seeds at T-30 and asks its
+  # first question at T-0, so the default would put every finding on the wrong
+  # side of it.
   finding_publishing_frequency = "FIFTEEN_MINUTES"
 
   tags = merge(var.tags, { Name = "${var.name_prefix}-detector" })
 }
 
-# S3 protection, as its own resource.
-#
-# The `datasources` block on the detector is deprecated in provider 6.x; the
-# feature resources are what it was split into. This one earns its place: the
-# seeded attack reads objects out of the exports bucket, and without S3 protection
-# GuardDuty never looks at S3 data events at all.
 resource "aws_guardduty_detector_feature" "s3_data_events" {
   count = var.enable_guardduty ? 1 : 0
 

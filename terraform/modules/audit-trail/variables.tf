@@ -10,19 +10,19 @@ variable "exports_bucket_name" {
 
 variable "retention_days" {
   description = <<-EOT
-    How long the event data store keeps events. Seven is the floor AWS allows.
+    How long the log group keeps events.
 
     A demo run is investigated within the hour and torn down the same day, so
-    nothing here needs to outlive the week. The number is a cost control: Lake
-    bills on ingest and on retained storage, and this repository is expected to
-    run unattended in CI.
+    nothing here needs to outlive the week. The number is a cost control: this
+    repository runs unattended in CI, and CloudWatch Logs bills on both ingest
+    and retained storage.
   EOT
   type        = number
   default     = 7
 
   validation {
-    condition     = var.retention_days >= 7 && var.retention_days <= 3653
-    error_message = "CloudTrail Lake retention is 7 to 3653 days."
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365], var.retention_days)
+    error_message = "CloudWatch Logs accepts only a fixed set of retention values; 7 is the shortest that outlives a demo day."
   }
 }
 
