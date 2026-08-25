@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import lifecycle
+from . import configsync, lifecycle, verify
 from .config import ConfigError, load
 from .sessions import AccountMismatch, SessionError
 
@@ -75,6 +75,43 @@ def cmd_down(config, args) -> int:
     return EXIT_OK
 
 
+def cmd_verify(config, args) -> int:
+    report(f"Preflight against {config.demo.account_id} ({config.demo.region})")
+    report("")
+
+    result = verify.run(config, config.demo.investigator_external_id)
+
+    symbol = {verify.Outcome.OK: "ok  ", verify.Outcome.WARN: "warn", verify.Outcome.FAIL: "FAIL"}
+    for check in result.checks:
+        report(f"  {symbol[check.outcome]}  {check.name}")
+        report(f"        {check.detail}")
+        if check.fix and check.outcome is not verify.Outcome.OK:
+            report(f"        -> {check.fix}")
+
+    report("")
+    if result.failed:
+        report(f"{len(result.failed)} check(s) failed. Do not start a demo on this.")
+        return EXIT_INCOMPLETE
+    if result.warned:
+        report(f"{len(result.warned)} warning(s). Readable above; none of them block a demo.")
+        return EXIT_OK
+    report("All checks passed.")
+    return EXIT_OK
+
+
+def cmd_config_sync(config, args) -> int:
+    from .config import repo_root
+    from .configsync import SyncError
+    try:
+        target = configsync.sync(repo_root())
+    except SyncError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    report(f"Wrote {target} from the Terraform outputs.")
+    report("Commit it: the file is what lets a fresh clone run verify without Terraform.")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="serverless-demo",
@@ -97,6 +134,15 @@ def build_parser() -> argparse.ArgumentParser:
                       help="Keep the elastic IP so the source address is stable between "
                            "demos. Costs $3.65/month.")
     down.set_defaults(handler=cmd_down)
+
+    verify_cmd = sub.add_parser(
+        "verify", help="Read-only preflight. Run before every demo.")
+    verify_cmd.set_defaults(handler=cmd_verify)
+
+    config_cmd = sub.add_parser("config", help="Manage demo.toml.")
+    config_sub = config_cmd.add_subparsers(dest="config_command", required=True)
+    sync_cmd = config_sub.add_parser("sync", help="Regenerate demo.toml from Terraform.")
+    sync_cmd.set_defaults(handler=cmd_config_sync)
 
     return parser
 

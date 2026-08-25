@@ -6,8 +6,8 @@
 # clone run `verify` without first running Terraform.
 #
 # Regenerate rather than hand-edit. Every command reads this file, so a value
-# edited here and not in Terraform is a divergence that shows up as a confusing
-# failure three commands later.
+# edited here and not in Terraform is a divergence that surfaces three commands
+# later as a confusing failure.
 
 [demo]
 account_id = "431662316594"
@@ -18,6 +18,11 @@ persistence_user = "svc-report-runner"
 log_group_name = "/aws/cloudtrail/serverless-demo"
 seed_admin_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-seedadmin"
 soar_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-soar"
+
+# Required on every assume of the investigator role. Not a secret in the way a
+# credential is -- useless without the credential it accompanies, and shown on
+# screen during the demo alongside the trust policy.
+investigator_external_id = "GJW84UBLM03ENm2z8Oqn30iaEz5R4kWK"
 investigator_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-readonly"
 warehouse_secret_arn = "arn:aws:secretsmanager:us-west-2:431662316594:secret:serverless-demo/warehouse-credentials-siYLjq"
 

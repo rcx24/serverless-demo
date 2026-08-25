@@ -49,6 +49,7 @@ class DemoAccount:
     seed_admin_role_arn: str
     soar_role_arn: str
     investigator_role_arn: str
+    investigator_external_id: str
     warehouse_secret_arn: str
 
 
