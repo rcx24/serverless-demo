@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from . import confirm, egress, keys, lifecycle, sessions
+from . import artifacts, confirm, egress, keys, lifecycle, sessions, soar
 from .config import Config
 
 
@@ -138,6 +138,18 @@ def run(config: Config, run_id: str, report, confirm_timeout: int = 1200) -> See
         return result
 
     report("  every expected event confirmed")
+
+    # --- soar -----------------------------------------------------------------
+    report("soar")
+    soar_result = soar.run(config, run_id, lambda m: report(m if m.startswith("  ") else f"  {m}"))
+
+    # --- artifacts ------------------------------------------------------------
+    report("artifacts")
+    bundle = artifacts.build(config, result, soar_result, seed_session, started_at)
+    artifacts_dir, out_dir = artifacts.write(bundle, run_id)
+    report(f"  wrote {artifacts_dir.relative_to(artifacts_dir.parents[1])}/ (alert, soar-case, iocs)")
+    report(f"  wrote {out_dir.relative_to(out_dir.parents[1])}/answer-key.md (never committed)")
+
     result.ok = True
     return result
 

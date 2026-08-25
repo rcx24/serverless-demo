@@ -70,7 +70,10 @@ def run(config: Config, run_id: str, report) -> SoarResult:
     session = sessions.soar(config)
     iam = session.client("iam")
     user = config.demo.compromised_user
-    case_id = f"CASE-{datetime.now(timezone.utc):%Y%m%d}-{run_id[-6:]}"
+    # Slug must be [a-z0-9]{6} to match the schema; a run id can contain hyphens,
+    # so strip to alphanumerics rather than slicing raw characters.
+    slug = "".join(ch for ch in run_id if ch.isalnum())[-6:].lower().rjust(6, "0")
+    case_id = f"CASE-{datetime.now(timezone.utc):%Y%m%d}-{slug}"
     result = SoarResult(case_id=case_id)
 
     report(f"playbook aws-compromised-access-key-containment on {user}")
