@@ -15,7 +15,7 @@ export AWS_PROFILE
 export AWS_REGION
 export AWS_DEFAULT_REGION := $(AWS_REGION)
 
-.PHONY: help identity fmt contracts test-cli bootstrap bootstrap-migrate org accounts init validate plan apply test clean
+.PHONY: help identity fmt contracts test-cli bootstrap bootstrap-migrate org accounts init validate plan apply test clean status up down
 
 help:
 	@echo "Targets:"
@@ -31,6 +31,11 @@ help:
 	@echo "  plan              Save a Terraform plan for the selected root"
 	@echo "  apply             Apply the previously saved plan"
 	@echo "  test              Run every module's terraform test, then the CLI tests"
+	@echo ""
+	@echo "Demo-day lifecycle (these cost money to leave on):"
+	@echo "  status            What is running, and what it costs to leave it that way"
+	@echo "  up                Demo-ready: start the egress host, attach an address"
+	@echo "  down              Minimum cost: stop everything, release the address"
 	@echo ""
 	@echo "Defaults: AWS_PROFILE=$(AWS_PROFILE), TF_DIR=$(TF_DIR)"
 	@echo "Select another root with: TF_DIR=terraform/org make plan"
@@ -96,6 +101,17 @@ test: contracts
 
 test-cli:
 	@PATH="$(PWD)/$(VENV)/bin:$$PATH" python -m pytest cli -q
+
+# The demo-day lifecycle. Separate from `teardown`, which reverses a seed run and
+# asserts the account matches baseline -- this only changes what is switched on.
+status:
+	@$(VENV)/bin/serverless-demo status
+
+up:
+	@$(VENV)/bin/serverless-demo up
+
+down:
+	@$(VENV)/bin/serverless-demo down
 
 clean:
 	rm -f $(TF_DIR)/$(TF_PLAN)

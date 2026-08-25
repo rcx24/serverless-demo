@@ -1,0 +1,39 @@
+# Written by `serverless-demo config sync` from the Terraform roots' outputs.
+#
+# Committed. Nothing here is a secret: account ids and role ARNs appear in every
+# error message this tool prints, and the external id is useless without the
+# credential it accompanies. Keeping it in the repository is what lets a fresh
+# clone run `verify` without first running Terraform.
+#
+# Regenerate rather than hand-edit. Every command reads this file, so a value
+# edited here and not in Terraform is a divergence that shows up as a confusing
+# failure three commands later.
+
+[demo]
+account_id = "431662316594"
+region = "us-west-2"
+exports_bucket = "acme-finance-exports-431662316594"
+compromised_user = "svc-billing-export"
+persistence_user = "svc-report-runner"
+log_group_name = "/aws/cloudtrail/serverless-demo"
+seed_admin_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-seedadmin"
+soar_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-soar"
+investigator_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-readonly"
+warehouse_secret_arn = "arn:aws:secretsmanager:us-west-2:431662316594:secret:serverless-demo/warehouse-credentials-siYLjq"
+
+[egress]
+account_id = "633800810188"
+region = "ap-southeast-1"
+instance_id = "i-0987f1a23f324d7c8"
+operator_role_arn = "arn:aws:iam::633800810188:role/serverless-demo-egress-operator"
+secret_path_prefix = "serverless-demo/leaked-key"
+
+[management]
+account_id = "429418377902"
+
+# The regions the attack discovers in. Chosen because the organization does not
+# operate in any of them, which is what makes the calls anomalous -- and the SCP
+# deliberately permits read-only verbs everywhere so they succeed rather than
+# returning AccessDenied.
+[attack]
+discovery_regions = ["ap-northeast-1", "eu-central-1", "sa-east-1", "ap-south-1"]
