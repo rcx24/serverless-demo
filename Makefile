@@ -113,5 +113,16 @@ up:
 down:
 	@$(VENV)/bin/serverless-demo down
 
+# Publishes the harness-facing content -- AGENTS.md and the runbooks -- to an
+# orphan `harness` branch that contains nothing else. The frame clones this repo
+# at `revision: harness` with --depth 1 --branch, so the agent sees the runbooks
+# and never main, where the scenario's design (and its answer) lives.
+#
+# An orphan branch rather than a second repository, because the ask was one repo
+# to pull; the isolation is the same either way, since the shallow single-branch
+# clone never fetches main.
+publish-runbooks:
+	@./scripts/publish-runbooks.sh
+
 clean:
 	rm -f $(TF_DIR)/$(TF_PLAN)

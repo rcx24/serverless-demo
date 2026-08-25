@@ -38,3 +38,8 @@ dist/
 # Answer keys and raw run output. answer-key.md names exactly what the analyst is
 # supposed to find, so it must never reach the harness or the repository.
 out/
+
+# sdemo build output and deps. The bundle is published to npm, and the harness
+# installs it from there via the tool catalog -- it is not committed here.
+harness/sdemo/dist/
+harness/sdemo/node_modules/
