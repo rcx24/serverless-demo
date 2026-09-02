@@ -22,7 +22,7 @@ output "investigator_role_arn" {
 
 output "investigator_external_id" {
   description = "Goes into the tool catalog entry's credential template. Not a secret in the way a credential is -- useless without the credential it accompanies, and shown on screen alongside the trust policy."
-  value       = random_password.external_id.result
+  value       = local.investigator_external_id
   sensitive   = true
 }
 

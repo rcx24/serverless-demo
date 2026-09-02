@@ -19,3 +19,22 @@ variable "name_prefix" {
   type    = string
   default = "serverless-demo"
 }
+
+variable "investigator_external_id" {
+  description = <<-EOT
+    The external id the AWS connector generated for this connection, if the
+    harness reaches this account through the connector.
+
+    Null uses the random one this environment generates, which is what a clone
+    with no connection yet wants. Set it to the value shown on the connection's
+    page in the product — the connector mints its own and will not accept one,
+    so this is the side that adapts.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.investigator_external_id == null || length(var.investigator_external_id) >= 16
+    error_message = "An external id short enough to guess is decoration rather than a control."
+  }
+}

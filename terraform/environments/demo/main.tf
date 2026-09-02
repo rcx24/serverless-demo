@@ -47,6 +47,26 @@ resource "random_password" "external_id" {
   special = false
 }
 
+# Which external id the investigator role actually requires.
+#
+# This used to be only the random one above, generated here and read out of the
+# Terraform output into demo.toml. That direction is backwards once the harness
+# connects through the product's AWS connector rather than a tool-catalog
+# credential template: the connector generates an external id with a CSPRNG at
+# connection-create time and deliberately never accepts one from a caller, so
+# that somebody who already knew a victim's value cannot stand a connection up
+# against it. The customer's side is what adapts.
+#
+# So the connector's value wins when there is one, and the random fallback keeps
+# a fresh clone able to plan and apply without a connection existing first.
+#
+# Changing it updates the role's trust policy in place — no replacement, so the
+# role ARN in demo.toml stays valid and the seed CLI keeps working once
+# configsync has re-read the outputs.
+locals {
+  investigator_external_id = coalesce(var.investigator_external_id, random_password.external_id.result)
+}
+
 module "finance_exports" {
   source = "../../modules/finance-exports"
 
@@ -82,7 +102,7 @@ module "readonly_connector" {
 
   name_prefix        = var.name_prefix
   trusted_account_id = var.management_account_id
-  external_id        = random_password.external_id.result
+  external_id        = local.investigator_external_id
   log_group_arn      = module.audit_trail.log_group_arn
   exports_bucket_arn = module.finance_exports.bucket_arn
   tags               = { Component = "readonly-connector" }
