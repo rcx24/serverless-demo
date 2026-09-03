@@ -3,9 +3,18 @@ variable "name_prefix" {
   default = "serverless-demo"
 }
 
-variable "trusted_account_id" {
-  description = "The account allowed to assume this role. The bootstrap user whose credential reaches the harness lives here, not in the demo account -- so a credential leaked out of a harness is not even in the account it would be used against."
-  type        = string
+variable "trusted_principal_arns" {
+  description = <<-EOT
+    The principals allowed to assume this role, gated by the external id below.
+
+    The AWS connector's control-plane task role is the one the product uses to
+    reach this account -- it assumes this role and hands the harness temporary
+    credentials, so the harness itself holds no standing access. The operator's
+    own account is usually included too, so rehearsal and `verify` can assume the
+    same role from a laptop; drop it once the demo runs entirely through the
+    product.
+  EOT
+  type        = list(string)
 }
 
 variable "external_id" {

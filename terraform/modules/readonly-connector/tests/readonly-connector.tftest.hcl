@@ -5,10 +5,10 @@
 mock_provider "aws" {}
 
 variables {
-  trusted_account_id = "429418377902"
-  external_id        = "demo-external-id-long-enough"
-  log_group_arn      = "arn:aws:logs:us-west-2:431662316594:log-group:/aws/cloudtrail/serverless-demo"
-  exports_bucket_arn = "arn:aws:s3:::acme-finance-exports"
+  trusted_principal_arns = ["arn:aws:iam::429418377902:role/quiv-demo-control-plane-task", "arn:aws:iam::429418377902:root"]
+  external_id            = "demo-external-id-long-enough"
+  log_group_arn          = "arn:aws:logs:us-west-2:431662316594:log-group:/aws/cloudtrail/serverless-demo"
+  exports_bucket_arn     = "arn:aws:s3:::acme-finance-exports"
 }
 
 run "an_object_can_never_be_read" {

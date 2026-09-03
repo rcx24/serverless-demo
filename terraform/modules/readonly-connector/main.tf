@@ -30,10 +30,10 @@ locals {
   trust_policy = {
     Version = "2012-10-17"
     Statement = [{
-      Sid       = "AssumeFromConnectorAccount"
+      Sid       = "AssumeWithExternalId"
       Effect    = "Allow"
       Action    = "sts:AssumeRole"
-      Principal = { AWS = "arn:aws:iam::${var.trusted_account_id}:root" }
+      Principal = { AWS = var.trusted_principal_arns }
       Condition = {
         StringEquals = { "sts:ExternalId" = var.external_id }
       }

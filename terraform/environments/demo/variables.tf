@@ -38,3 +38,9 @@ variable "investigator_external_id" {
     error_message = "An external id short enough to guess is decoration rather than a control."
   }
 }
+
+variable "control_plane_role_arn" {
+  description = "The AWS connector's control-plane task role, which assumes the read-only role to deliver credentials to a harness. Null when no connection is wired yet."
+  type        = string
+  default     = null
+}

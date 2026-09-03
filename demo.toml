@@ -22,7 +22,7 @@ soar_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-soar"
 # Required on every assume of the investigator role. Not a secret in the way a
 # credential is -- useless without the credential it accompanies, and shown on
 # screen during the demo alongside the trust policy.
-investigator_external_id = "GJW84UBLM03ENm2z8Oqn30iaEz5R4kWK"
+investigator_external_id = "XtY6pEQLN951NhBi6yup1VnMPDAr83eK3eZ8GS3N18E"
 investigator_role_arn = "arn:aws:iam::431662316594:role/serverless-demo-readonly"
 warehouse_secret_arn = "arn:aws:secretsmanager:us-west-2:431662316594:secret:serverless-demo/warehouse-credentials-siYLjq"
 

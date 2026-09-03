@@ -34,19 +34,6 @@ check "target_account" {
   }
 }
 
-# The external id, generated once and kept in state.
-#
-# Not a secret in the way a credential is -- it is useless without the credential
-# it accompanies, and it goes on screen during the demo alongside the trust
-# policy. It is generated rather than written down so that it is not a value
-# somebody chose, and `keepers` is empty so it survives every apply: rotating it
-# would silently break the tool catalog entry in the product, which is edited by
-# hand and would still carry the old one.
-resource "random_password" "external_id" {
-  length  = 32
-  special = false
-}
-
 # Which external id the investigator role actually requires.
 #
 # This used to be only the random one above, generated here and read out of the
@@ -63,6 +50,15 @@ resource "random_password" "external_id" {
 # Changing it updates the role's trust policy in place — no replacement, so the
 # role ARN in demo.toml stays valid and the seed CLI keeps working once
 # configsync has re-read the outputs.
+# A generated fallback external id, used when no AWS connection is wired yet -- a
+# fresh clone can still stand up the role and assume it from a laptop. Once the
+# product's connector is connected, its own external id is set in
+# connector.auto.tfvars and takes precedence via the coalesce below.
+resource "random_password" "external_id" {
+  length  = 32
+  special = false
+}
+
 locals {
   investigator_external_id = coalesce(var.investigator_external_id, random_password.external_id.result)
 }
@@ -100,8 +96,14 @@ module "audit_trail" {
 module "readonly_connector" {
   source = "../../modules/readonly-connector"
 
-  name_prefix        = var.name_prefix
-  trusted_account_id = var.management_account_id
+  name_prefix = var.name_prefix
+  # The connector's control-plane task role (present once a connection exists) plus
+  # the operator account for rehearsal. compact() drops the control-plane entry
+  # when no connection is wired yet, so a fresh clone still trusts the operator.
+  trusted_principal_arns = compact([
+    var.control_plane_role_arn,
+    "arn:aws:iam::${var.management_account_id}:root",
+  ])
   external_id        = local.investigator_external_id
   log_group_arn      = module.audit_trail.log_group_arn
   exports_bucket_arn = module.finance_exports.bucket_arn

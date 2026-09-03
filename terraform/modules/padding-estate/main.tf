@@ -90,6 +90,13 @@ resource "aws_instance" "workload" {
     encrypted   = true
   }
 
+  # These are scenery -- they exist to appear in DescribeInstances. A newer AL2023
+  # AMI published upstream should not replace them; that is churn with no benefit
+  # and it would briefly empty the inventory the demo relies on.
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = merge(var.tags, {
     Name    = each.key
     Purpose = each.value
