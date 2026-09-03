@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import configsync, containment, lifecycle, seed, teardown, verify
+from . import configsync, containment, lifecycle, seed, siembot, teardown, verify
 from .config import ConfigError, load
 from .sessions import AccountMismatch, SessionError
 
@@ -189,6 +189,27 @@ def cmd_teardown(config, args) -> int:
     return EXIT_INCOMPLETE
 
 
+def cmd_alert_post(config, args) -> int:
+    import os
+    from pathlib import Path
+    from .config import repo_root
+    from .siembot import AlertPostError, post
+    alert_path = repo_root() / "artifacts" / args.run_id / "alert.json"
+    try:
+        result = post(
+            alert_path,
+            webhook_url=args.webhook_url or os.environ.get("SLACK_WEBHOOK_URL"),
+            bot_token=args.bot_token or os.environ.get("SLACK_BOT_TOKEN"),
+            channel=args.channel or os.environ.get("SLACK_CHANNEL"),
+        )
+    except AlertPostError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    report(result)
+    report("The Slack trigger should launch the harness now. Nobody clicked anything.")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="serverless-demo",
@@ -232,6 +253,15 @@ def build_parser() -> argparse.ArgumentParser:
     td = sub.add_parser("teardown", help="Revoke keys, undo containment, assert baseline.")
     td.add_argument("--run-id", help="The run to tear down. Omit to clean whatever is present.")
     td.set_defaults(handler=cmd_teardown)
+
+    alert = sub.add_parser("alert", help="The simulated SIEM bot.")
+    alert_sub = alert.add_subparsers(dest="alert_command", required=True)
+    ap = alert_sub.add_parser("post", help="Post a run's alert.json to Slack (fires the demo).")
+    ap.add_argument("--run-id", required=True)
+    ap.add_argument("--webhook-url", help="Slack incoming webhook (or SLACK_WEBHOOK_URL).")
+    ap.add_argument("--bot-token", help="Slack bot token (or SLACK_BOT_TOKEN).")
+    ap.add_argument("--channel", help="Channel id for bot posting (or SLACK_CHANNEL).")
+    ap.set_defaults(handler=cmd_alert_post)
 
     config_cmd = sub.add_parser("config", help="Manage demo.toml.")
     config_sub = config_cmd.add_subparsers(dest="config_command", required=True)

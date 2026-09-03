@@ -42,17 +42,19 @@ export AWS_ACCESS_KEY_ID=$(echo "$creds" | python3 -c 'import json,sys;print(jso
 export AWS_SECRET_ACCESS_KEY=$(echo "$creds" | python3 -c 'import json,sys;print(json.load(sys.stdin)["SecretAccessKey"])')
 unset AWS_SESSION_TOKEN
 
-# A freshly minted access key can take several seconds to become usable -- IAM is
-# eventually consistent, and the first call with a brand-new key often returns
-# InvalidClientTokenId. Retry GetCallerIdentity with backoff before doing anything
-# else, so the sequence does not fail on a race that has nothing to do with it.
+# A freshly minted access key can take a while to become usable -- IAM is
+# eventually consistent, and the first call with a brand-new key returns
+# InvalidClientTokenId until it propagates. Usually that is under a minute, but it
+# is occasionally 1-2 minutes, so the window is generous: 30 attempts at 6s is up
+# to 3 minutes. Failing the whole seed because propagation was slow -- a race that
+# has nothing to do with the scenario -- is not worth saving two minutes over.
 identity=""
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
+for attempt in $(seq 1 30); do
   identity=$(aws sts get-caller-identity --region "$REGION_HOME" --output json 2>/dev/null) && break
   sleep 6
 done
 if [ -z "$identity" ]; then
-  echo '{"fatal":"leaked key never became usable"}'
+  echo '{"fatal":"leaked key never became usable after 3 minutes"}'
   echo "---SUMMARY---"
   echo '{"ok":false,"reason":"key not propagated"}'
   exit 1
