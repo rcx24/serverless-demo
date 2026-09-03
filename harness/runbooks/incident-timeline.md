@@ -4,48 +4,56 @@ Reconstruct what the compromised key did, in order, and flag what is anomalous.
 
 ## Procedure
 
-1. From `alert.json`, take the access key id (`entity.accessKeyId`) and a window.
-   The events in `samples` bound it; a couple of hours before the first sample is
-   a safe start.
+From `alert.json`, take the access key id (`entity.accessKeyId`) and a window (a
+couple of hours before the first event in `samples` is a safe start).
 
-2. Pull every event that key made:
+**IAM activity — always `us-east-1`.** IAM is global and logs only there:
 
-   ```
-   serverless-aws timeline --access-key <AKIA...> --since <ISO8601>
-   ```
+```
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=<AKIA...> \
+  --region us-east-1 --start-time <ISO8601>
+```
 
-   `serverless-aws` queries each region the events could be in — this matters, and it is
-   the trap a manual investigation falls into. CloudTrail Event History is *per
-   region*. IAM is a global service and logs only to us-east-1; calls to other
-   regions log in those regions; object reads are data events and are not in Event
-   History at all. `serverless-aws timeline` handles this; if you query one region by hand
-   you will see a fraction of the activity and conclude too little happened.
+**Home-region activity** (STS, S3 bucket-level) — repeat the same lookup with
+`--region us-west-2`.
 
-3. Read the sequence for shape, not just contents. A compromised credential
-   usually shows:
+**Cross-region discovery** — the attack calls `DescribeInstances` in regions the
+org does not operate in, and each logs in its own region. The regions are visible
+in `alert.json`'s `samples[].awsRegion`; look those up too, or check the handful of
+regions the samples name.
 
-   - **an identity check first** (`GetCallerIdentity`) — confirming the key works
-   - **discovery** — enumerating IAM (`ListUsers`, `ListRoles`,
-     `GetAccountAuthorizationDetails`) and infrastructure (`DescribeInstances`)
-   - **access** — finding and reading data (`ListBuckets`, `ListObjects`,
-     `GetObject`)
-   - **something to persist** — this is the one to watch for, and it is covered in
-     `containment-verification.md`
+**Object reads** are data events and are **not** in `lookup-events`. Query the
+CloudWatch log group instead:
+
+```
+aws logs start-query --log-group-name /aws/cloudtrail/serverless-demo \
+  --start-time <epoch> --end-time <epoch> \
+  --query-string "fields eventTime, eventName, requestParameters.key
+                  | filter eventName = 'GetObject'
+                  | sort eventTime asc"
+# then: aws logs get-query-results --query-id <id>
+```
+
+## Read the sequence for shape
+
+A compromised credential usually shows: an identity check first
+(`GetCallerIdentity`), then discovery (`ListUsers`, `ListRoles`,
+`GetAccountAuthorizationDetails`, `DescribeInstances`), then access
+(`ListBuckets`, `ListObjects`, `GetObject`), then something to persist.
 
 ## What to flag
 
-- **Cross-region activity.** `serverless-aws timeline` marks the region of each call. If the
-  key called `DescribeInstances` in regions the organization does not operate in,
-  that is discovery, and it is one of the clearest signals in the whole timeline.
-  Note which regions.
-- **The source address.** Every call in this incident came from one IP. `serverless-aws
-  timeline` shows it. Note it for `ioc-extraction.md`.
-- **Any call that creates or modifies an identity or credential.**
-  `CreateAccessKey`, `CreateUser`, `AttachUserPolicy`, `PutUserPolicy`. These are
-  not discovery — they are the attacker changing the account, and they are what
+- **Cross-region calls** in regions the org does not use — the clearest discovery
+  signal. Note which regions.
+- **The source address** — every call here came from one IP (`sourceIPAddress` in
+  the events). Note it for `ioc-extraction.md`.
+- **Any call that creates or modifies an identity or credential** —
+  `CreateAccessKey`, `AttachUserPolicy`, `PutUserPolicy`. Not discovery: the
+  attacker changing the account. `CreateAccessKey` especially is what
   `containment-verification.md` follows up.
 
 ## Output
 
-A short chronology: time, region, event, and a one-line note on anything flagged.
-You will reference the `CreateAccessKey` — if there is one — in the next step.
+A short chronology: time, region, event, one-line note on anything flagged. You
+will reference the `CreateAccessKey` — if there is one — in the next step.

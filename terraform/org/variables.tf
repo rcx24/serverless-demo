@@ -39,3 +39,9 @@ variable "organization_id" {
   type        = string
   default     = "o-7pwyf3tc4m"
 }
+
+variable "budget_notify_emails" {
+  description = "Where the $20/month budget alarm sends alerts. The demo's operators."
+  type        = list(string)
+  default     = ["ryan+serverless-demo@getserverless.ai", "alex+serverless-demo@getserverless.ai"]
+}

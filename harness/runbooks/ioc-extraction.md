@@ -1,20 +1,18 @@
 # IOC extraction
 
-Pull the indicators into a form a blocklist or SIEM can import. Start from what
-the detection already gave you and add what the investigation found.
+Pull the indicators into a form a blocklist or SIEM can import. Start from what the
+detection already gave you and add what the investigation found.
 
 ## Procedure
 
-```
-serverless-aws iocs
-```
+`runbooks/artifacts/iocs.json` holds the indicators the detection surfaced (source
+IP, ASN, user agent, the compromised key and principal, the objects read). Then add
+what *you* found that it did not — most importantly, the uncontained credential from
+`containment-verification.md`.
 
-This emits the indicators the seed detection surfaced. Then add what *you* found
-that it did not — most importantly, the uncontained credential from
-`containment-verification.md`. The seeded `iocs.json` deliberately does not include
-the orphaned key, because extracting the blast radius of a `CreateAccessKey` is an
-investigation step, not something the detection could have known. Adding it is the
-point of this step.
+The seeded `iocs.json` deliberately does not include the orphaned key, because
+extracting the blast radius of a `CreateAccessKey` is an investigation step, not
+something the detection could have known. Adding it is the point of this step.
 
 ## What each indicator needs
 

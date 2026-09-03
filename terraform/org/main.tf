@@ -50,3 +50,14 @@ module "organization" {
 
   tags = { Component = "organization" }
 }
+
+# The $20/month tripwire from the spec, in the management account so it sees
+# consolidated spend across the vended accounts. Notifies; does not cap -- the SCP
+# and `serverless-demo down` are the real cost controls, this is the backstop for a
+# bug that leaves instances running for days.
+module "budget" {
+  source = "../modules/budget-alarm"
+
+  notify_emails = var.budget_notify_emails
+  tags          = { Component = "budget" }
+}

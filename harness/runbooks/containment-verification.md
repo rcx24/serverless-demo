@@ -16,69 +16,76 @@ So the question is not "did the SOAR contain the alerting identity?" It is:
 > Did the automation's scope cover **everything the compromised key touched** — or
 > only the identity the alert happened to name?
 
-You answer it by enumerating what the key did to *other* identities, and checking
+You answer it by enumerating what the key did to *other* identities and checking
 each against what the SOAR case says it handled.
 
 ## Procedure
 
 ### 1. Confirm the half the SOAR claims
 
-From `soar-case.json`, read the steps. It typically claims to have quarantined the
-identity and disabled its key. Verify both against the account:
+From `soar-case.json`, read the steps — it typically claims to have quarantined the
+identity and disabled its key. Verify both against the account (IAM, so
+`us-east-1` is irrelevant here — these are not lookups, they are live state):
 
 ```
-serverless-aws identity --name <compromised-user>
+aws iam list-attached-user-policies --user-name <compromised-user>
+aws iam list-user-policies --user-name <compromised-user>     # look for a quarantine/deny policy
+aws iam list-access-keys --user-name <compromised-user>        # the alerting key should be Inactive
 ```
 
-This shows the identity's attached policies and the status of each of its access
-keys. Confirm the quarantine policy is present and the alerting key is `Inactive`.
-If either is not true, the automation's own claimed actions did not take effect —
-a finding in itself.
+If either is not true, the automation's own claimed actions did not take effect — a
+finding in itself.
 
-### 2. Find what the key did to other identities
+### 2. Find what the key did to *other* identities
 
-This is the step that surfaces what automation misses. The compromised key may
-have created credentials on identities the SOAR never looked at.
+This is the step that surfaces what automation misses. Pull every `CreateAccessKey`
+the compromised key made. **This is an IAM event, so `us-east-1`:**
 
 ```
-serverless-aws containment-check
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=<compromised-AKIA> \
+  --region us-east-1 --start-time <window-start> \
+  --query "Events[?EventName=='CreateAccessKey']"
 ```
 
-`serverless-aws containment-check` does the derivation for you, and it is worth
-understanding what it does rather than treating it as a black box, because you may
-have to defend the finding:
-
-1. It reads every `CreateAccessKey` the compromised key made, from the trail.
-2. For each, it takes the **target identity and the new key id from the event's
-   own response** — CloudTrail records both. This is how it learns which
-   identities were touched *without being told*; the attacker chose them, so no
-   alert or runbook could have named them in advance.
-3. It reads, from `soar-case.json`, every identity and key the SOAR steps actually
-   named.
-4. It reports the **difference**: any key the compromised credential created, that
-   the SOAR never named, that is **still Active**. That is a credential the
-   automation missed and the attacker still holds.
-
-### 3. Confirm each finding against live state
-
-For anything `containment-check` flags, confirm it is real and current:
+For each `CreateAccessKey`, read the event detail — the **target identity and the
+new key id are in the event's own `responseElements`**:
 
 ```
-serverless-aws identity --name <flagged-identity>
+# CloudTrailEvent is a JSON string; parse it:
+... | jq -r '.CloudTrailEvent | fromjson
+             | .responseElements.accessKey | "\(.userName)  \(.accessKeyId)"'
 ```
 
-The flagged key should show as `Active`. If it does, the automation reported
-containment while leaving a working credential in place.
+This is how you learn which identities were touched **without being told** — the
+attacker chose them, so no alert or runbook could name them in advance.
+
+### 3. Diff against what the SOAR named
+
+From `soar-case.json`, collect every identity and key the steps mention
+(`.steps[].target`). Any identity or key from step 2 that the SOAR **never named**
+is outside what the automation handled.
+
+### 4. Confirm each candidate against live state
+
+For anything the SOAR did not name, check the minted key is still usable:
+
+```
+aws iam list-access-keys --user-name <target-identity>
+```
+
+If that key is **Active**, the automation reported containment while leaving a
+working credential in place.
 
 ## What to conclude
 
-- **If `containment-check` reports nothing uncontained** and step 1 confirmed the
-  claimed actions, the SOAR did its job. Proceed to close-out.
-- **If it reports an uncontained key**, the incident is *not* contained regardless
-  of what the case says. Establish what that identity can reach
+- **If every minted key was named by the SOAR** and step 1 confirmed the claimed
+  actions, the SOAR did its job. Proceed to close-out.
+- **If a minted key is Active and unnamed**, the incident is *not* contained
+  regardless of what the case says. Establish what that identity can reach
   (`iam-blast-radius.md`), then escalate — do not close. Note the key id, the
   identity, and the evidence event id; you will need all three in the report.
 
 Do not be reassured by a SOAR disposition of "contained." That is the automation's
-verdict on the steps it ran, which is a true statement about a smaller thing than
-the question you are answering.
+verdict on the steps it ran — a true statement about a smaller thing than the
+question you are answering.
