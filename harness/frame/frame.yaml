@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://schemas.quiv.dev/harness-frame/v1alpha1.schema.json
+#
+# Source-of-truth for the soc-triage template. Frames are generated from the
+# Template ("Configuration") UI, not applied from git -- so this file is the
+# reference an operator recreates in the product, and what `harness verify` (todo)
+# would diff against. The field-by-field UI mapping is in template.md beside it.
+apiVersion: quiv.dev/v1alpha1
+kind: HarnessFrame
+
+metadata:
+  name: soc-triage
+  description: Triage a cloud-identity alert against a real read-only AWS role.
+
+spec:
+  runtime: pi
+  model:
+    provider: anthropic
+    id: claude-sonnet-4-5
+    credential: session-setup
+  # ttl and size are hardcoded by ConfigurationSnapshotService (4h / small); the
+  # UI does not offer them and this must match or a diff would always fail.
+  ttl: 4h
+  size: small
+
+  # The runbooks, cloned from the harness branch -- runbooks and AGENTS.md only,
+  # never main (which carries the scenario's answer). Private repo, so the
+  # launching user needs the GitHub tool connected.
+  repositories:
+    - repository: github.com/rcx24/serverless-demo
+      revision: harness
+      destination: serverless-demo
+
+  # AWS is the new capability: toggle it on and select the connected demo account.
+  # This is not a frame key in the schema yet -- it is set in the Template UI's AWS
+  # section (a nullable connection on the configuration). Represented here for
+  # completeness; see template.md for where it goes in the UI.
+  #   awsConnection: serverless-demo (account 431662316594)
+
+  # Records prompts and tool calls -- what produces the audit-trail beat at the end
+  # of the demo.
+  activityLog: true
+
+  # Slack parameter + channel sync are for the hands-off (Milestone 2) path, where
+  # the SIEM bot's alert launches the harness. Omitted here until that is wired.
+  # parameters:
+  #   - { name: channel, type: slack-channel, label: Alerting channel, required: true }
+  # slackChannels:
+  #   - { parameter: channel, label: alert, lookback: 1d, sync: 1m }
