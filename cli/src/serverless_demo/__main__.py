@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import configsync, containment, lifecycle, seed, siembot, teardown, verify
+from . import bot, configsync, containment, lifecycle, seed, siembot, teardown, verify
 from .config import ConfigError, load
 from .sessions import AccountMismatch, SessionError
 
@@ -210,6 +210,65 @@ def cmd_alert_post(config, args) -> int:
     return EXIT_OK
 
 
+def _bot_config(args):
+    """BotConfig from flags-or-env. Missing required values raise a usage error."""
+    import os
+    from .bot import BotConfig
+
+    def need(flag, env):
+        val = getattr(args, flag, None) or os.environ.get(env)
+        if not val:
+            raise SystemExit(f"error: --{flag.replace('_','-')} or {env} is required")
+        return val
+
+    return BotConfig(
+        signing_secret=need("signing_secret", "BOT_SIGNING_SECRET"),
+        public_url=need("public_url", "BOT_PUBLIC_URL"),
+        api_url=need("api_url", "SERVERLESS_API_URL"),
+        client_id=need("client_id", "SERVERLESS_CLIENT_ID"),
+        client_secret=need("client_secret", "SERVERLESS_CLIENT_SECRET"),
+        configuration_id=need("configuration_id", "SOC_TRIAGE_CONFIG_ID"),
+        thread_parameter=(getattr(args, "thread_parameter", None)
+                          or os.environ.get("SOC_TRIAGE_THREAD_PARAM", "thread")),
+    )
+
+
+def cmd_demo_fire(config, args) -> int:
+    import os
+    from pathlib import Path
+    from .config import repo_root
+    from .siembot import AlertPostError, fire
+    from .bot import launch_url_for
+
+    bot_cfg = _bot_config(args)
+    token = args.bot_token or os.environ.get("SLACK_BOT_TOKEN")
+    channel = args.channel or os.environ.get("SLACK_CHANNEL")
+    if not token or not channel:
+        print("error: --bot-token/SLACK_BOT_TOKEN and --channel/SLACK_CHANNEL are required "
+              "(the thread needs a bot token, not a webhook)", file=sys.stderr)
+        return EXIT_USAGE
+
+    run_dir = repo_root() / "artifacts" / args.run_id
+    try:
+        result = fire(run_dir / "alert.json", run_dir / "soar-case.json",
+                      bot_token=token, channel=channel,
+                      launch_url_for=launch_url_for(bot_cfg), report=report, pace=args.pace)
+    except AlertPostError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    report("")
+    report(f"Thread is live: {result['channel']}/{result['thread_ts']}")
+    report("Click the button in the thread to launch the harness. Make sure `bot serve` is up.")
+    return EXIT_OK
+
+
+def cmd_bot_serve(config, args) -> int:
+    from .bot import serve
+    bot_cfg = _bot_config(args)
+    serve(bot_cfg, args.port, report=report)
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="serverless-demo",
@@ -262,6 +321,33 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--bot-token", help="Slack bot token (or SLACK_BOT_TOKEN).")
     ap.add_argument("--channel", help="Channel id for bot posting (or SLACK_CHANNEL).")
     ap.set_defaults(handler=cmd_alert_post)
+
+    # Shared bot/product flags for demo+bot commands.
+    def add_bridge_flags(sp):
+        sp.add_argument("--signing-secret", help="or BOT_SIGNING_SECRET")
+        sp.add_argument("--public-url", help="the tunnel URL the button points at (or BOT_PUBLIC_URL)")
+        sp.add_argument("--api-url", help="product base URL (or SERVERLESS_API_URL)")
+        sp.add_argument("--client-id", help="API client id (or SERVERLESS_CLIENT_ID)")
+        sp.add_argument("--client-secret", help="API client secret (or SERVERLESS_CLIENT_SECRET)")
+        sp.add_argument("--configuration-id", help="soc-triage template id (or SOC_TRIAGE_CONFIG_ID)")
+        sp.add_argument("--thread-parameter", help="frame slack-thread param name (or SOC_TRIAGE_THREAD_PARAM, default 'thread')")
+
+    demo = sub.add_parser("demo", help="Drive the Slack demo flow.")
+    demo_sub = demo.add_subparsers(dest="demo_command", required=True)
+    fire_cmd = demo_sub.add_parser("fire", help="Post the alert, SOAR replies, and launch button to a thread.")
+    fire_cmd.add_argument("--run-id", required=True)
+    fire_cmd.add_argument("--bot-token", help="Slack bot token (or SLACK_BOT_TOKEN).")
+    fire_cmd.add_argument("--channel", help="Channel id (or SLACK_CHANNEL).")
+    fire_cmd.add_argument("--pace", type=float, default=1.5, help="Seconds between SOAR replies.")
+    add_bridge_flags(fire_cmd)
+    fire_cmd.set_defaults(handler=cmd_demo_fire)
+
+    bot_cmd = sub.add_parser("bot", help="The launch bridge for the Slack button.")
+    bot_sub = bot_cmd.add_subparsers(dest="bot_command", required=True)
+    serve_cmd = bot_sub.add_parser("serve", help="Run the /launch endpoint locally.")
+    serve_cmd.add_argument("--port", type=int, default=8787)
+    add_bridge_flags(serve_cmd)
+    serve_cmd.set_defaults(handler=cmd_bot_serve)
 
     config_cmd = sub.add_parser("config", help="Manage demo.toml.")
     config_sub = config_cmd.add_subparsers(dest="config_command", required=True)

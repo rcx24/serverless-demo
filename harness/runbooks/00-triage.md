@@ -5,15 +5,17 @@ step names the runbook that covers it.
 
 ## 1. Read what you were given
 
-Open `runbooks/artifacts/alert.json`. Note:
+Open the synced Slack thread file under `slack/` (the workspace's AGENTS.md names
+it). The **alert** is the first message; note from it:
 
 - the **principal** and **access key** the alert is about (`entity`)
 - the **detection time** vs the event times in `samples` — the gap is the
   CloudTrail delivery lag, and it is normal
 - the **MITRE techniques** — they tell you what kind of activity fired the rule
 
-Open `runbooks/artifacts/soar-case.json`. Note its **disposition** and read its
-**steps**. This is what the automation says it did.
+In the same thread, the **SOAR replies** follow the alert — each states one
+containment action the automation took. Note the final **disposition** and the
+steps. This is what the automation says it did.
 
 ## 2. What happened? → `incident-timeline.md`
 

@@ -5,12 +5,12 @@ detection already gave you and add what the investigation found.
 
 ## Procedure
 
-`runbooks/artifacts/iocs.json` holds the indicators the detection surfaced (source
-IP, ASN, user agent, the compromised key and principal, the objects read). Then add
-what *you* found that it did not — most importantly, the uncontained credential from
-`containment-verification.md`.
+The alert in the thread carries the indicators the detection surfaced — the source
+IP, ASN, user agent, the compromised key and principal. Collect those, then add what
+*you* found that the detection did not — most importantly, the uncontained credential
+from `containment-verification.md`.
 
-The seeded `iocs.json` deliberately does not include the orphaned key, because
+The seeded indicators deliberately do not include the orphaned key, because
 extracting the blast radius of a `CreateAccessKey` is an investigation step, not
 something the detection could have known. Adding it is the point of this step.
 

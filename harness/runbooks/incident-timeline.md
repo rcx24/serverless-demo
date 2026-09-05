@@ -4,7 +4,7 @@ Reconstruct what the compromised key did, in order, and flag what is anomalous.
 
 ## Procedure
 
-From `alert.json`, take the access key id (`entity.accessKeyId`) and a window (a
+From the alert (the first message in the synced thread under `slack/`), take the
 couple of hours before the first event in `samples` is a safe start).
 
 **IAM activity — always `us-east-1`.** IAM is global and logs only there:
@@ -20,7 +20,7 @@ aws cloudtrail lookup-events \
 
 **Cross-region discovery** — the attack calls `DescribeInstances` in regions the
 org does not operate in, and each logs in its own region. The regions are visible
-in `alert.json`'s `samples[].awsRegion`; look those up too, or check the handful of
+in the alert's sample events; look those up too, or check the handful of
 regions the samples name.
 
 **Object reads** are data events and are **not** in `lookup-events`. Query the

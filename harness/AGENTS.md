@@ -11,10 +11,14 @@ escalate.
   account. Run any read-only AWS command you need. The role cannot read S3 object
   contents and cannot modify any credential — if a call is refused, that is a
   finding to report, not something to work around.
-- The alert, the SOAR case, and the extracted indicators in `runbooks/artifacts/`
-  as `alert.json`, `soar-case.json`, and `iocs.json`.
-- The runbooks below. Each is a procedure with the reasoning spelled out — follow
-  the reasoning, because the alert will not always match the last one.
+- **The alert and the SOAR results in the Slack thread**, synced into a file under
+  `slack/` in this workspace (the generated context above names it). The alert opens
+  the thread; the automation's containment steps are the replies. Read that file
+  first — it is the incident. It carries the compromised principal, the access key,
+  and what the SOAR reports it did.
+- The runbooks in `serverless-demo/runbooks/`. Each is a procedure with the
+  reasoning spelled out — follow the reasoning, because the alert will not always
+  match the last one.
 
 ## How to work
 

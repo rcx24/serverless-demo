@@ -23,7 +23,8 @@ each against what the SOAR case says it handled.
 
 ### 1. Confirm the half the SOAR claims
 
-From `soar-case.json`, read the steps — it typically claims to have quarantined the
+From the SOAR replies in the thread, read the steps — the automation typically
+claims to have quarantined the
 identity and disabled its key. Verify both against the account (IAM, so
 `us-east-1` is irrelevant here — these are not lookups, they are live state):
 
@@ -62,8 +63,8 @@ attacker chose them, so no alert or runbook could name them in advance.
 
 ### 3. Diff against what the SOAR named
 
-From `soar-case.json`, collect every identity and key the steps mention
-(`.steps[].target`). Any identity or key from step 2 that the SOAR **never named**
+From the SOAR replies in the thread, collect every identity and key the automation
+named in its steps. Any identity or key from step 2 that the SOAR **never named**
 is outside what the automation handled.
 
 ### 4. Confirm each candidate against live state
