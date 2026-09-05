@@ -18,8 +18,8 @@ unable to read a private thread. Note the channel id (`C…`).
   and `configuration:use`. Under that user, mint an API client (Connections →
   Command line, or `/api/api-clients`). Copy the client id and the one-time secret →
   `SERVERLESS_CLIENT_ID` / `SERVERLESS_CLIENT_SECRET`.
-- **Connect Slack for that user.** The harness reads the thread with the *launching
-  user's* Slack connection, and the launch runs as the API client's owner. So that
+- **Connect Slack for that user.** The harness reads the thread with the _launching
+  user's_ Slack connection, and the launch runs as the API client's owner. So that
   user must have the **Slack** integration connected (Connections → Slack), with
   access to the demo channel. If it is not connected the harness still launches but
   the thread comes through as "could not be read".
