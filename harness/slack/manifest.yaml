@@ -1,0 +1,34 @@
+# Slack app manifest for the SIEM/SOAR bot.
+#
+# Create the app at https://api.slack.com/apps → "Create New App" → "From a
+# manifest", paste this, install to the workspace, and copy the Bot User OAuth
+# Token (xoxb-...) into SLACK_BOT_TOKEN.
+#
+# Deliberately minimal: the bot only POSTS (the alert, the SOAR replies, the
+# button). It needs no event subscriptions and no interactivity request URL,
+# because the launch button is a URL button that opens the local launch bridge
+# directly -- Slack never calls back into the bot. That is what lets the bot run
+# locally with only a tunnel, and with no inbound Slack verification to handle.
+display_information:
+  name: SOC Alerts
+  description: Posts security alerts and SOAR results, with a button to investigate in a harness.
+  background_color: "#7137E2"
+
+features:
+  bot_user:
+    display_name: soc-alerts
+    always_online: true
+
+oauth_config:
+  scopes:
+    bot:
+      # Post the alert, the threaded SOAR replies, and the button message.
+      - chat:write
+      # Post into a channel the bot is a member of without pre-joining every one.
+      - chat:write.public
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
+  # No event_subscriptions and no interactivity block: the bot only sends.

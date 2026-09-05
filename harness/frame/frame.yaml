@@ -40,9 +40,24 @@ spec:
   # of the demo.
   activityLog: true
 
-  # Slack parameter + channel sync are for the hands-off (Milestone 2) path, where
-  # the SIEM bot's alert launches the harness. Omitted here until that is wired.
-  # parameters:
-  #   - { name: channel, type: slack-channel, label: Alerting channel, required: true }
-  # slackChannels:
-  #   - { parameter: channel, label: alert, lookback: 1d, sync: 1m }
+  # The incident is delivered as a Slack THREAD, not a channel: the button's launch
+  # passes `channelId/threadTs` into this parameter, and the runtime syncs that one
+  # thread into slack/<label>.md -- the alert plus the SOAR replies, in order. The
+  # generated AGENTS.md names that file, and the alert in it points at the runbooks.
+  #
+  # The parameter name here ("thread") must match SOC_TRIAGE_THREAD_PARAM the bot
+  # sends. `required: true` so a launch with no thread refuses rather than producing
+  # a harness with no incident.
+  parameters:
+    - name: thread
+      type: slack-thread
+      label: Alerting thread
+      required: true
+
+  # No lookback on a thread: it is bounded by its own first message, so the first
+  # pull takes all of it (alert + every SOAR reply) and later pulls take what has
+  # been added since.
+  slackThreads:
+    - parameter: thread
+      label: incident
+      sync: 1m

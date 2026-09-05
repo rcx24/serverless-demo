@@ -32,7 +32,14 @@ account, via the connection you already verified.
 ## Options
 
 - **Activity log:** on
-- Slack channel parameter: leave off for now (Milestone 2 / hands-off launch).
+
+## Slack thread (hands-off launch — Milestone 2)
+
+Add a parameter named **`thread`** of type **Slack thread**, and a **Slack-thread
+context source** bound to it (label `incident`, sync 1m). This is what lets the
+launch button pass the incident thread in; the harness syncs it into `slack/` and
+the agent reads the alert + SOAR from there. See `harness/slack/SETUP.md` for the
+full wiring (service user, API client, Slack connection, env).
 
 ## First test — prove AWS works in the harness (Milestone 1a)
 
