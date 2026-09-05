@@ -31,11 +31,16 @@ unable to read a private thread. Note the channel id (`C…`).
 ## 3. The launch bridge (each demo session)
 
 The bot's `/launch` endpoint must be reachable from your browser, so expose it with
-a tunnel:
+a tunnel. The easiest way is the helper, which starts the tunnel, discovers its URL,
+writes `BOT_PUBLIC_URL` into `.env`, and runs the bridge — all in one command:
 
 ```
-ngrok http 8787            # gives e.g. https://ab12.ngrok.io
+./scripts/demo-up.sh       # tunnel + bot bridge; Ctrl-C stops both
 ```
+
+(It uses cloudflared — `brew install cloudflared`, no signup. To do it by hand
+instead: `cloudflared tunnel --url http://localhost:8787` and copy the
+`*.trycloudflare.com` URL into `BOT_PUBLIC_URL`.)
 
 Set the environment (a `.env` you source, never committed):
 
