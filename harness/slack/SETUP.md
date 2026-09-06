@@ -18,11 +18,29 @@ unable to read a private thread. Note the channel id (`C…`).
   and `configuration:use`. Under that user, mint an API client (Connections →
   Command line, or `/api/api-clients`). Copy the client id and the one-time secret →
   `SERVERLESS_CLIENT_ID` / `SERVERLESS_CLIENT_SECRET`.
-- **Connect Slack for that user.** The harness reads the thread with the _launching
-  user's_ Slack connection, and the launch runs as the API client's owner. So that
-  user must have the **Slack** integration connected (Connections → Slack), with
-  access to the demo channel. If it is not connected the harness still launches but
-  the thread comes through as "could not be read".
+- **Connect Slack for that user — and mind Token Rotation.** The harness reads the
+  thread with the _launching user's_ Slack connection, and the launch runs as the API
+  client's owner. So that user must have the **Slack** integration connected
+  (Connections → Integrations → Slack), with access to the demo channel. If it is not
+  connected, the harness still launches but the thread comes through as "could not be
+  read".
+
+  The Slack app used for this connection is **not** the SIEM poster bot — it is a
+  separate app, and it **must have Token Rotation ON** and its seven scopes under
+  **User** Token Scopes (not Bot). Without Token Rotation, connecting fails with
+  *"Slack returned an incomplete token response"* — the single most common setup
+  failure. The easiest correct path is to create that app from the product's own
+  manifest, which bakes both in: **app.getserverless.ai/app/docs/tools/slack**. After
+  connecting, the connected Slack account must **join the demo channel** (the agent
+  reads as you and sees only what you can see).
+
+  | App | Token Rotation | Scopes | Job |
+  |---|---|---|---|
+  | Poster (`manifest.yaml`) | **off** | Bot `chat:write` | posts the alert/SOAR/button |
+  | Reader (product manifest) | **on** | User: the 7 read scopes | the harness reads the thread |
+
+  Keep them separate — turning Token Rotation on the poster would break its static
+  `SLACK_BOT_TOKEN`.
 - **Template.** Edit the `soc-triage` template: add a parameter named **`thread`**
   of type **Slack thread**, and a **Slack-thread context source** bound to that
   parameter (label `incident`, sync 1m). This mirrors `harness/frame/frame.yaml`.
