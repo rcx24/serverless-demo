@@ -15,7 +15,7 @@ export AWS_PROFILE
 export AWS_REGION
 export AWS_DEFAULT_REGION := $(AWS_REGION)
 
-.PHONY: help identity fmt contracts test-cli bootstrap bootstrap-migrate org accounts init validate plan apply test clean status up down
+.PHONY: help identity fmt contracts test-cli bootstrap bootstrap-migrate org accounts init validate plan apply test clean status up down demo
 
 help:
 	@echo "Targets:"
@@ -36,6 +36,7 @@ help:
 	@echo "  status            What is running, and what it costs to leave it that way"
 	@echo "  up                Demo-ready: start the egress host, attach an address"
 	@echo "  down              Minimum cost: stop everything, release the address"
+	@echo "  demo              Run the whole live demo end to end; holds open until Ctrl-C"
 	@echo ""
 	@echo "Defaults: AWS_PROFILE=$(AWS_PROFILE), TF_DIR=$(TF_DIR)"
 	@echo "Select another root with: TF_DIR=terraform/org make plan"
@@ -112,6 +113,11 @@ up:
 
 down:
 	@$(VENV)/bin/serverless-demo down
+
+# The whole live demo in one command: preflight -> clean -> bridge up -> seed ->
+# fire the alert -> hold open for the button until Ctrl-C. See scripts/demo-run.sh.
+demo:
+	@./scripts/demo-run.sh
 
 # Publishes the harness-facing content -- AGENTS.md and the runbooks -- to an
 # orphan `harness` branch that contains nothing else. The frame clones this repo
